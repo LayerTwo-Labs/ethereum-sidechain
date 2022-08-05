@@ -1,0 +1,10 @@
+[package]
+name = "drivechain-eth"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+drivechain-c = { path = "../../drivechain-c" }
