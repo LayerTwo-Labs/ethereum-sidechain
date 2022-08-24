@@ -217,7 +217,8 @@ type Config struct {
 func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, config *ethash.Config, notify []string, noverify bool, db ethdb.Database) consensus.Engine {
 	// If proof-of-authority is requested, set it up
 	var engine consensus.Engine
-	engine = &bmm.Bmm{}
+	var bmm = bmm.New(stack.Config().DataDir)
+	engine = &bmm
 	if false {
 		if chainConfig.Clique != nil {
 			engine = clique.New(chainConfig.Clique, db)

@@ -7,33 +7,49 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/drivechain"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/trie"
 	"golang.org/x/crypto/sha3"
 	"math/big"
+	"path/filepath"
+	"time"
 )
 
 var (
-	maxUncles = 0 // With blind merge mining there are no uncle blocks.
+	maxUncles = 0 // With blind merge mining and 10 minutes block time there are no uncle blocks.
 )
 
 // Bmm is a blind merge mining consensus engine.
 type Bmm struct {
 }
 
+func New(dataDir string) Bmm {
+	drivechain.Init(filepath.Join(dataDir, "drivechain"), "user", "password")
+	return Bmm{}
+}
+
 func (bmm *Bmm) Author(header *types.Header) (common.Address, error) {
 	return header.Coinbase, nil
 }
 
+// FIXME: Figure out why VerifyHeader is never called in dev mode.
 func (bmm *Bmm) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
-	if !drivechain.VerifyBmm(header.MainBlockHash, header.Root) {
+	log.Info("verifying ", header.PrevMainBlockHash)
+	if !drivechain.VerifyBmm(header.PrevMainBlockHash, header.Hash()) {
 		return errors.New("invalid bmm")
 	}
 	return nil
 }
 
 func (bmm *Bmm) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
+	log.Info("verifying ", headers)
 	abort, results := make(chan struct{}), make(chan error, len(headers))
+	for i := 0; i < len(headers); i++ {
+		err := bmm.VerifyHeader(chain, headers[i], seals[i])
+		results <- err
+	}
 	return abort, results
 }
 
@@ -42,20 +58,49 @@ func (bmm *Bmm) VerifyUncles(chain consensus.ChainReader, block *types.Block) er
 }
 
 func (bmm *Bmm) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
-	return errors.New("unimplemented")
+	// NOTE: Probably PrevMainBlockHash should be set here.
+	header.Difficulty = big.NewInt(1)
+	return nil
 }
 
 func (bmm *Bmm) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs []*types.Transaction, uncles []*types.Header) {
+	// Accumulate any block and uncle rewards and commit the final state root
+	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 }
 
 func (bmm *Bmm) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
-	return nil, errors.New("unimplemented")
+	// Finalize block
+	bmm.Finalize(chain, header, state, txs, uncles)
+	// Header seems complete, assemble into a block and return
+	return types.NewBlock(header, txs, uncles, receipts, trie.NewStackTrie(nil)), nil
 }
 
 func (bmm *Bmm) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
-	return errors.New("unimplemented")
+	if len(block.Transactions()) == 0 {
+		return errors.New("sealing paused while waiting for transactions")
+	}
+	// FIXME: Make it possible for the miner to change the amount.
+	amount := uint64(10000)
+	header := block.Header()
+	drivechain.AttemptBmm(header.Hash(), amount)
+	for true {
+		state := drivechain.ConfirmBmm()
+		if state == drivechain.Succeded {
+			log.Info("block was bmmed")
+			select {
+			case results <- block.WithSeal(header):
+			default:
+			}
+			break
+		} else if state == drivechain.Failed {
+			break
+			return errors.New("bmm commitment wasn't inclued in a main:block")
+		}
+		time.Sleep(1 * time.Second)
+	}
+	return nil
 }
 
 func (bmm *Bmm) SealHash(header *types.Header) (hash common.Hash) {
@@ -94,5 +139,5 @@ func (bmm *Bmm) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 }
 
 func (bmm *Bmm) Close() error {
-	return errors.New("unimplemented")
+	return nil
 }

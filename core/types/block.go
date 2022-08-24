@@ -69,7 +69,6 @@ func (n *BlockNonce) UnmarshalText(input []byte) error {
 // Header represents a block header in the Ethereum blockchain.
 type Header struct {
 	PrevMainBlockHash common.Hash    `json:"prevMainBlockHash" gencodec:"required"`
-	MainBlockHash     common.Hash    `json:"mainBlockHash"     gencodec:"required"`
 	ParentHash        common.Hash    `json:"parentHash"        gencodec:"required"`
 	UncleHash         common.Hash    `json:"sha3Uncles"        gencodec:"required"`
 	Coinbase          common.Address `json:"miner"`

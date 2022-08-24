@@ -7,33 +7,35 @@ package drivechain
 import "C"
 import (
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"unsafe"
 )
 
-func AttemptBmm(criticalHash string, blockData string, amount uint64) {
-	C.attempt_bmm(C.CString(criticalHash), C.CString(blockData), C.ulong(amount))
+const THIS_SIDECHAIN = 1
+
+// db_path: *const libc::c_char,
+// this_sidechain: usize,
+// rpcuser: *const libc::c_char,
+// rpcpassword: *const libc::c_char,
+func Init(dbPath, rpcUser, rpcPassword string) {
+	log.Info("drivechain initialized")
+	C.init(C.CString(dbPath), C.ulong(THIS_SIDECHAIN), C.CString(rpcUser), C.CString(rpcPassword))
 }
 
-type Block struct {
-	Data          string
-	Time          int64
-	MainBlockHash string
+func AttemptBmm(criticalHash common.Hash, amount uint64) {
+	C.attempt_bmm(C.CString(criticalHash.Hex()[2:]), C.ulong(amount))
 }
 
-func ConfirmBmm() *Block {
-	var cBlock = C.confirm_bmm()
-	if cBlock == nil {
-		return nil
-	}
-	var block = Block{
-		Data:          C.GoString(cBlock.data),
-		Time:          int64(cBlock.time),
-		MainBlockHash: C.GoString(cBlock.main_block_hash),
-	}
-	C.free(unsafe.Pointer(cBlock.data))
-	C.free(unsafe.Pointer(cBlock.main_block_hash))
-	C.free(unsafe.Pointer(cBlock))
-	return &block
+type BmmState uint
+
+const (
+	Succeded BmmState = iota
+	Failed
+	Pending
+)
+
+func ConfirmBmm() BmmState {
+	return BmmState(C.confirm_bmm())
 }
 
 func GetPrevMainBlockHash(mainBlockHash string) string {
@@ -44,5 +46,5 @@ func GetPrevMainBlockHash(mainBlockHash string) string {
 }
 
 func VerifyBmm(mainBlockHash common.Hash, criticalHash common.Hash) bool {
-	return bool(C.verify_bmm(C.CString(mainBlockHash.Hex()), C.CString(criticalHash.Hex())))
+	return bool(C.verify_bmm(C.CString(mainBlockHash.Hex()[2:]), C.CString(criticalHash.Hex()[2:])))
 }
