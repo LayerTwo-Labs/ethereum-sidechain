@@ -35,6 +35,7 @@ func (bmm *Bmm) Author(header *types.Header) (common.Address, error) {
 }
 
 // FIXME: Figure out why VerifyHeader is never called in dev mode.
+// FIXME: Add non PoW checks from ethash consensus engine.
 func (bmm *Bmm) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
 	log.Info("verifying ", header.PrevMainBlockHash)
 	if !drivechain.VerifyBmm(header.PrevMainBlockHash, header.Hash()) {
@@ -65,6 +66,10 @@ func (bmm *Bmm) Prepare(chain consensus.ChainHeaderReader, header *types.Header)
 
 func (bmm *Bmm) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs []*types.Transaction, uncles []*types.Header) {
+	deposits := drivechain.GetDepositOutputs()
+	for _, deposit := range deposits {
+		state.AddBalance(deposit.Address, deposit.Amount)
+	}
 	// Accumulate any block and uncle rewards and commit the final state root
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 }
@@ -78,28 +83,34 @@ func (bmm *Bmm) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *t
 }
 
 func (bmm *Bmm) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
-	if len(block.Transactions()) == 0 {
-		return errors.New("sealing paused while waiting for transactions")
-	}
 	// FIXME: Make it possible for the miner to change the amount.
 	amount := uint64(10000)
 	header := block.Header()
 	drivechain.AttemptBmm(header.Hash(), amount)
-	for true {
-		state := drivechain.ConfirmBmm()
-		if state == drivechain.Succeded {
-			log.Info("block was bmmed")
-			select {
-			case results <- block.WithSeal(header):
-			default:
+	log.Info("attempting to bmm block")
+
+	go func() {
+		for true {
+			// log.Info("checking if block was bmmed")
+			state := drivechain.ConfirmBmm()
+			if state == drivechain.Succeded {
+				log.Info("block was bmmed")
+				select {
+				case <-stop:
+					break
+				case results <- block.WithSeal(header):
+				default:
+				}
+				break
+			} else if state == drivechain.Failed {
+				log.Info("bmm commitment wasn't inclued in a main:block")
+				log.Info("attempting new bmm request")
+				drivechain.AttemptBmm(header.Hash(), amount)
 			}
-			break
-		} else if state == drivechain.Failed {
-			break
-			return errors.New("bmm commitment wasn't inclued in a main:block")
+			time.Sleep(1 * time.Second)
 		}
-		time.Sleep(1 * time.Second)
-	}
+		log.Info("finished attempting to seal block")
+	}()
 	return nil
 }
 
