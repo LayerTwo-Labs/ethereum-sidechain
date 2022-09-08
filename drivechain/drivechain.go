@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	// "github.com/ethereum/go-ethereum/log"
 	"math/big"
+	"strings"
 	"unsafe"
 )
 
@@ -70,6 +71,23 @@ func GetDepositOutputs() []Deposit {
 	return deposits
 }
 
+func ConnectBlock(deposits []Deposit, just_checking bool) bool {
+	depositsArray := C.malloc(C.size_t(len(deposits)) * C.size_t(unsafe.Sizeof(C.Deposit{})))
+	a := (*[1<<30 - 1]C.Deposit)(depositsArray)
+	for i, deposit := range deposits {
+		cDeposit := C.Deposit{
+			address: C.CString(strings.ToLower(deposit.Address.String())),
+			amount:  C.ulong(deposit.Amount.Uint64()),
+		}
+		a[i] = cDeposit
+	}
+	cDeposits := C.Deposits{
+		ptr: &a[0],
+		len: C.ulong(len(deposits)),
+	}
+	return bool(C.connect_block(cDeposits, C.bool(just_checking)))
+}
+
 func FormatDepositAddress(address string) string {
 	cAddress := C.CString(address)
 	cDepositAddress := C.format_deposit_address(cAddress)
@@ -113,3 +131,6 @@ func verifyBmm(mainBlockHash string, criticalHash string) bool {
 func VerifyBmm(mainBlockHash common.Hash, criticalHash common.Hash) bool {
 	return verifyBmm(mainBlockHash.Hex()[2:], criticalHash.Hex()[2:])
 }
+
+
+// NOTE: Treasure account idea makes a lot of sense for ethereum!

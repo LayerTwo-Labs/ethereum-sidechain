@@ -22,8 +22,7 @@ var (
 )
 
 // Bmm is a blind merge mining consensus engine.
-type Bmm struct {
-}
+type Bmm struct{}
 
 func New(dataDir string) Bmm {
 	drivechain.Init(filepath.Join(dataDir, "drivechain"), "user", "password")
@@ -66,11 +65,15 @@ func (bmm *Bmm) Prepare(chain consensus.ChainHeaderReader, header *types.Header)
 
 func (bmm *Bmm) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs []*types.Transaction, uncles []*types.Header) {
+	// Pay out pending deposits.
 	deposits := drivechain.GetDepositOutputs()
 	for _, deposit := range deposits {
 		state.AddBalance(deposit.Address, deposit.Amount)
 	}
-	// Accumulate any block and uncle rewards and commit the final state root
+	// Update drivechain db with paid out deposits.
+	if !drivechain.ConnectBlock(deposits, false) {
+		log.Error("failed to connect block data for drivechain")
+	}
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 }
 
@@ -83,6 +86,8 @@ func (bmm *Bmm) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *t
 }
 
 func (bmm *Bmm) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+	// FIXME: Add RPC for formatting an address.
+	log.Info(drivechain.FormatDepositAddress("0x723d452ffd34dde633def296c48670c6df132751"))
 	// FIXME: Make it possible for the miner to change the amount.
 	amount := uint64(10000)
 	header := block.Header()
