@@ -1,11 +1,14 @@
 package bmm
 
 import (
+	"crypto/ecdsa"
 	"errors"
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/drivechain"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -22,11 +25,22 @@ var (
 )
 
 // Bmm is a blind merge mining consensus engine.
-type Bmm struct{}
+type Bmm struct {
+	treasuryPrivateKey *ecdsa.PrivateKey
+	treasuryAddress    common.Address
+}
 
 func New(dataDir string) Bmm {
+	privKey, err := crypto.HexToECDSA(drivechain.TREASURY_PRIVATE_KEY)
+	if err != nil {
+		panic(fmt.Sprintf("can't get treasury private key: %s", err))
+	}
+	address := crypto.PubkeyToAddress(*privKey.Public().(*ecdsa.PublicKey))
 	drivechain.Init(filepath.Join(dataDir, "drivechain"), "user", "password")
-	return Bmm{}
+	return Bmm{
+		treasuryPrivateKey: privKey,
+		treasuryAddress:    address,
+	}
 }
 
 func (bmm *Bmm) Author(header *types.Header) (common.Address, error) {
@@ -65,15 +79,6 @@ func (bmm *Bmm) Prepare(chain consensus.ChainHeaderReader, header *types.Header)
 
 func (bmm *Bmm) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs []*types.Transaction, uncles []*types.Header) {
-	// Pay out pending deposits.
-	deposits := drivechain.GetDepositOutputs()
-	for _, deposit := range deposits {
-		state.AddBalance(deposit.Address, deposit.Amount)
-	}
-	// Update drivechain db with paid out deposits.
-	if !drivechain.ConnectBlock(deposits, false) {
-		log.Error("failed to connect block data for drivechain")
-	}
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 }
 
@@ -81,6 +86,7 @@ func (bmm *Bmm) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *t
 	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 	// Finalize block
 	bmm.Finalize(chain, header, state, txs, uncles)
+	log.Info(fmt.Sprintf("len(txs) = %d", len(txs)))
 	// Header seems complete, assemble into a block and return
 	return types.NewBlock(header, txs, uncles, receipts, trie.NewStackTrie(nil)), nil
 }
@@ -91,7 +97,8 @@ func (bmm *Bmm) Seal(chain consensus.ChainHeaderReader, block *types.Block, resu
 	// FIXME: Make it possible for the miner to change the amount.
 	amount := uint64(10000)
 	header := block.Header()
-	drivechain.AttemptBmm(header.Hash(), amount)
+	header.PrevMainBlockHash = drivechain.GetMainchainTip()
+	drivechain.AttemptBmm(header, amount)
 	log.Info("attempting to bmm block")
 
 	go func() {
@@ -110,7 +117,8 @@ func (bmm *Bmm) Seal(chain consensus.ChainHeaderReader, block *types.Block, resu
 			} else if state == drivechain.Failed {
 				log.Info("bmm commitment wasn't inclued in a main:block")
 				log.Info("attempting new bmm request")
-				drivechain.AttemptBmm(header.Hash(), amount)
+				header.PrevMainBlockHash = drivechain.GetMainchainTip()
+				drivechain.AttemptBmm(header, amount)
 			}
 			time.Sleep(1 * time.Second)
 		}

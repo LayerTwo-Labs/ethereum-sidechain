@@ -36,6 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/drivechain"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/internal/syncx"
@@ -1298,6 +1299,29 @@ func (bc *BlockChain) WriteBlockAndSetHead(block *types.Block, receipts []*types
 		return NonStatTy, errChainStopped
 	}
 	defer bc.chainmu.Unlock()
+
+	deposits := make([]drivechain.Deposit, 0)
+	treasuryAddress := common.HexToAddress(drivechain.TREASURY_ACCOUNT)
+	for _, tx := range block.Transactions() {
+		message, err := tx.AsMessage(types.NewEIP155Signer(big.NewInt(1337)), nil)
+		if err != nil {
+			log.Error(fmt.Sprintf("failed to convert tx to message: %s", err))
+		}
+		log.Info(fmt.Sprintf("connecting tx: %d to %s", tx.Value(), tx.To().Hex()))
+		log.Info(fmt.Sprintf("from =  %s", message.From().Hex()))
+		if message.From() == treasuryAddress {
+			deposit := drivechain.Deposit{
+				Address: *tx.To(),
+				Amount: tx.Value(),
+			}
+			deposits = append(deposits, deposit)
+		}
+	}
+	/////////// Drivechain update
+	// Update drivechain db with paid out deposits.
+	if !drivechain.ConnectBlock(deposits, nil, nil, false) {
+		log.Error("failed to connect block data for drivechain")
+	}
 
 	return bc.writeBlockAndSetHead(block, receipts, logs, state, emitHeadEvent)
 }

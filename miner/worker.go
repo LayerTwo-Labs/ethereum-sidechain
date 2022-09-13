@@ -31,6 +31,8 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/drivechain"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -1048,6 +1050,7 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 // into the given sealing block. The transaction selection and ordering strategy can
 // be customized with the plugin in the future.
 func (w *worker) fillTransactions(interrupt *int32, env *environment) error {
+	log.Info("fillTransactions called")
 	// Split the pending transactions into locals and remotes
 	// Fill the block with all available pending transactions.
 	pending := w.eth.TxPool().Pending(true)
@@ -1058,6 +1061,29 @@ func (w *worker) fillTransactions(interrupt *int32, env *environment) error {
 			localTxs[account] = txs
 		}
 	}
+	treasuryPrivateKey, err := crypto.HexToECDSA(drivechain.TREASURY_PRIVATE_KEY)
+	if err != nil {
+		panic(fmt.Sprintf("can't get treasury private key: %s", err))
+	}
+	treasuryAddress := common.HexToAddress(drivechain.TREASURY_ACCOUNT)
+	// Pay out pending deposits.
+	deposits := drivechain.GetDepositOutputs()
+	nonce := env.state.GetNonce(treasuryAddress)
+	// maximum value of uint64
+	if nonce == uint64(18446744073709551615) {
+		nonce = 0
+	}
+	for _, deposit := range deposits {
+		tx := types.NewTransaction(nonce, deposit.Address, deposit.Amount, 21000, nil, nil)
+		tx, err := types.SignTx(tx, env.signer, treasuryPrivateKey)
+		if err != nil {
+			log.Error(fmt.Sprintf("failed to sign tx: %s", err))
+		}
+		log.Info(fmt.Sprintf("adding tx: %d to %s", tx.Value(), tx.To().Hex()))
+		localTxs[treasuryAddress] = append(localTxs[treasuryAddress], tx)
+		nonce += 1
+	}
+	log.Info(fmt.Sprintf("len(localTxs) = %d", len(localTxs)))
 	if len(localTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(env.signer, localTxs, env.header.BaseFee)
 		if err := w.commitTransactions(env, txs, interrupt); err != nil {
