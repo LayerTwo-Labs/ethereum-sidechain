@@ -1719,7 +1719,6 @@ func (s *TransactionAPI) SendTransaction(ctx context.Context, args TransactionAr
 	if err != nil {
 		return common.Hash{}, err
 	}
-	log.Info("transaction was submitted")
 	return SubmitTransaction(ctx, s.b, signed)
 }
 
