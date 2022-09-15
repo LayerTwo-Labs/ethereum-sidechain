@@ -1910,7 +1910,10 @@ var unitMap = {
     'grand':        '1000000000000000000000',
     'mether':       '1000000000000000000000000',
     'gether':       '1000000000000000000000000000',
-    'tether':       '1000000000000000000000000000000'
+    'tether':       '1000000000000000000000000000000',
+    // Satoshi is 10^10 Wei
+    // 1 Ether = 1 BTC
+    'satoshi':      '10000000000',
 };
 
 /**
@@ -2192,6 +2195,11 @@ var toWei = function(number, unit) {
     return isBigNumber(number) ? returnValue : returnValue.toString(10);
 };
 
+var toSatoshi = function(number, unit) {
+    var wei = toBigNumber(number).times(getValueOfUnit(unit));
+    return fromWei(wei, 'satoshi');
+}
+
 /**
  * Takes an input and transforms it into a bignumber
  *
@@ -2454,6 +2462,7 @@ module.exports = {
     extractDisplayName: extractDisplayName,
     extractTypeName: extractTypeName,
     toWei: toWei,
+    toSatoshi: toSatoshi,
     fromWei: fromWei,
     toBigNumber: toBigNumber,
     toTwosComplement: toTwosComplement,
@@ -2576,6 +2585,7 @@ Web3.prototype.toDecimal = utils.toDecimal;
 Web3.prototype.fromDecimal = utils.fromDecimal;
 Web3.prototype.toBigNumber = utils.toBigNumber;
 Web3.prototype.toWei = utils.toWei;
+Web3.prototype.toSatoshi = utils.toSatoshi;
 Web3.prototype.fromWei = utils.fromWei;
 Web3.prototype.isAddress = utils.isAddress;
 Web3.prototype.isChecksumAddress = utils.isChecksumAddress;
@@ -5390,6 +5400,13 @@ var methods = function () {
         inputFormatter: [formatters.inputTransactionFormatter]
     });
 
+    var deposit = new Method({
+        name: 'deposit',
+        call: 'eth_deposit',
+        params: 3,
+        inputFormatter: [formatters.inputAddressFormatter, utils.toHex, utils.toHex]
+    });
+
     var signTransaction = new Method({
         name: 'signTransaction',
         call: 'eth_signTransaction',
@@ -5467,6 +5484,7 @@ var methods = function () {
         sendRawTransaction,
         signTransaction,
         sendTransaction,
+        deposit,
         sign,
         compileSolidity,
         compileLLL,

@@ -106,13 +106,13 @@ func (bmm *Bmm) Seal(chain consensus.ChainHeaderReader, block *types.Block, resu
 			// log.Info("checking if block was bmmed")
 			state := drivechain.ConfirmBmm()
 			if state == drivechain.Succeded {
-				log.Info("block was bmmed")
 				select {
 				case <-stop:
 					break
 				case results <- block.WithSeal(header):
 				default:
 				}
+				log.Info("block was bmmed")
 				break
 			} else if state == drivechain.Failed {
 				log.Info("bmm commitment wasn't inclued in a main:block")
@@ -165,3 +165,7 @@ func (bmm *Bmm) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 func (bmm *Bmm) Close() error {
 	return nil
 }
+
+// Deposit -- get
+// Withdraw
+// Refund

@@ -1310,9 +1310,11 @@ func (bc *BlockChain) WriteBlockAndSetHead(block *types.Block, receipts []*types
 		log.Info(fmt.Sprintf("connecting tx: %d to %s", tx.Value(), tx.To().Hex()))
 		log.Info(fmt.Sprintf("from =  %s", message.From().Hex()))
 		if message.From() == treasuryAddress {
+			var amount big.Int
+			amount.Div(tx.Value(), drivechain.Satoshi)
 			deposit := drivechain.Deposit{
 				Address: *tx.To(),
-				Amount: tx.Value(),
+				Amount: &amount,
 			}
 			deposits = append(deposits, deposit)
 		}

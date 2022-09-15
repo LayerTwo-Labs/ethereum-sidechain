@@ -39,6 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/drivechain"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
@@ -264,6 +265,7 @@ func NewEthereumAccountAPI(am *accounts.Manager) *EthereumAccountAPI {
 
 // Accounts returns the collection of accounts this node manages.
 func (s *EthereumAccountAPI) Accounts() []common.Address {
+	log.Info("called Accounts()")
 	return s.am.Accounts()
 }
 
@@ -453,6 +455,7 @@ func (s *PersonalAccountAPI) signTransaction(ctx context.Context, args *Transact
 // tries to sign it with the key associated with args.From. If the given
 // passwd isn't able to decrypt the key it fails.
 func (s *PersonalAccountAPI) SendTransaction(ctx context.Context, args TransactionArgs, passwd string) (common.Hash, error) {
+	log.Info("PersonalAccountAPI sendTransaction was called")
 	if args.Nonce == nil {
 		// Hold the addresse's mutex around signing to prevent concurrent assignment of
 		// the same nonce to multiple accounts.
@@ -1689,6 +1692,7 @@ func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 // SendTransaction creates a transaction for the given argument, sign it and submit it to the
 // transaction pool.
 func (s *TransactionAPI) SendTransaction(ctx context.Context, args TransactionArgs) (common.Hash, error) {
+	log.Info("TransactionAPI sendTransaction was called")
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: args.from()}
 
@@ -1716,6 +1720,25 @@ func (s *TransactionAPI) SendTransaction(ctx context.Context, args TransactionAr
 		return common.Hash{}, err
 	}
 	return SubmitTransaction(ctx, s.b, signed)
+}
+
+// Here amount and fee are in Satoshi.
+func (s *TransactionAPI) Deposit(address common.Address, amount *hexutil.Big, fee *hexutil.Big) bool {
+	return drivechain.CreateDeposit(address, amount.ToInt().Uint64(), fee.ToInt().Uint64())
+}
+
+// Amount and fee are in Satoshi.
+func (s *TransactionAPI) Withdraw(ctx context.Context, from common.Address, amount uint64, fee uint64) (common.Hash, error) {
+	treasury := common.HexToAddress(drivechain.TREASURY_ACCOUNT)
+	var value big.Int
+	value.Mul(big.NewInt(int64(amount)), drivechain.Satoshi)
+	hexValue := hexutil.Big(value)
+	args := TransactionArgs{
+		From:  &from,
+		To:    &treasury,
+		Value: &hexValue,
+	}
+	return s.SendTransaction(ctx, args)
 }
 
 // FillTransaction fills the defaults (nonce, gas, gasPrice or 1559 fields)

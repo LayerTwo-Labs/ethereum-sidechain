@@ -277,7 +277,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		startCh:            make(chan struct{}, 1),
 		resubmitIntervalCh: make(chan time.Duration),
 		resubmitAdjustCh:   make(chan *intervalAdjust, resubmitAdjustChanSize),
-		noempty: 1,
+		noempty:            1,
 	}
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
@@ -1075,7 +1075,10 @@ func (w *worker) fillTransactions(interrupt *int32, env *environment) error {
 		nonce = 0
 	}
 	for _, deposit := range deposits {
-		tx := types.NewTransaction(nonce, deposit.Address, deposit.Amount, 21000, nil, nil)
+		// FIXME: Set gas value properly.
+		var value big.Int
+		value.Mul(deposit.Amount, drivechain.Satoshi)
+		tx := types.NewTransaction(nonce, deposit.Address, &value, 21000, nil, nil)
 		tx, err := types.SignTx(tx, env.signer, treasuryPrivateKey)
 		if err != nil {
 			log.Error(fmt.Sprintf("failed to sign tx: %s", err))

@@ -53,6 +53,8 @@ const char *get_mainchain_tip(void);
 
 const char *format_deposit_address(const char *address);
 
+bool create_deposit(const char *address, uint64_t amount, uint64_t fee);
+
 struct Deposits get_deposit_outputs(void);
 
 bool connect_block(struct Deposits deposits,

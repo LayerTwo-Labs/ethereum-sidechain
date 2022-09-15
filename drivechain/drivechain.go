@@ -32,6 +32,9 @@ const THIS_SIDECHAIN = 1
 const TREASURY_PRIVATE_KEY = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
 const TREASURY_ACCOUNT = "0xc96aaa54e2d44c299564da76e1cd3184a2386b8d"
 
+// There are 10,000,000,000 Wei in one Satoshi
+var Satoshi = big.NewInt(10_000_000_000)
+
 // There are 10^8 satoshi in one BTC
 // There are 10^18 Wei in one Ether.
 //
@@ -176,6 +179,22 @@ func FormatDepositAddress(address string) string {
 	return depositAddress
 }
 
+func CreateDeposit(address common.Address, amount uint64, fee uint64) bool {
+	// var weiInSatoshi big.Int
+	// weiInSatoshi.Exp(big.NewInt(10), big.NewInt(10), nil) // There are 10^10 Wei in 1 Satoshi.
+	// var satAmount big.Int
+	// var satFee big.Int
+	// satAmount.Div(amount, &weiInSatoshi)
+	// satFee.Div(fee, &weiInSatoshi)
+	cAddress := C.CString(strings.ToLower(address.Hex()))
+
+	cAmount := C.ulong(amount)
+	cFee := C.ulong(fee)
+	result := C.create_deposit(cAddress, cAmount, cFee)
+	C.free(unsafe.Pointer(cAddress))
+	return bool(result)
+}
+
 func attemptBmm(criticalHash string, prevMainBlockHash string, amount uint64) {
 	cCriticalHash := C.CString(criticalHash)
 	cPrevMainBlockHash := C.CString(prevMainBlockHash)
@@ -212,5 +231,3 @@ func verifyBmm(mainBlockHash string, criticalHash string) bool {
 func VerifyBmm(mainBlockHash common.Hash, criticalHash common.Hash) bool {
 	return verifyBmm(mainBlockHash.Hex()[2:], criticalHash.Hex()[2:])
 }
-
-// NOTE: Treasure account idea makes a lot of sense for ethereum!
