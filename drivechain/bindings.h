@@ -3,6 +3,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+typedef struct WithdrawalAddress {
+  uint8_t address[20];
+} WithdrawalAddress;
+
 typedef struct Deposit {
   const char *address;
   uint64_t amount;
@@ -54,6 +58,8 @@ const char *get_mainchain_tip(void);
 const char *format_deposit_address(const char *address);
 
 bool create_deposit(const char *address, uint64_t amount, uint64_t fee);
+
+struct WithdrawalAddress get_new_mainchain_address(void);
 
 struct Deposits get_deposit_outputs(void);
 

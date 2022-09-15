@@ -1719,6 +1719,7 @@ func (s *TransactionAPI) SendTransaction(ctx context.Context, args TransactionAr
 	if err != nil {
 		return common.Hash{}, err
 	}
+	log.Info("transaction was submitted")
 	return SubmitTransaction(ctx, s.b, signed)
 }
 
@@ -1728,15 +1729,17 @@ func (s *TransactionAPI) Deposit(address common.Address, amount *hexutil.Big, fe
 }
 
 // Amount and fee are in Satoshi.
-func (s *TransactionAPI) Withdraw(ctx context.Context, from common.Address, amount uint64, fee uint64) (common.Hash, error) {
+func (s *TransactionAPI) Withdraw(ctx context.Context, from common.Address, amount *hexutil.Big, fee *hexutil.Big) (common.Hash, error) {
 	treasury := common.HexToAddress(drivechain.TREASURY_ACCOUNT)
 	var value big.Int
-	value.Mul(big.NewInt(int64(amount)), drivechain.Satoshi)
+	value.Mul(amount.ToInt(), drivechain.Satoshi)
 	hexValue := hexutil.Big(value)
+	input := hexutil.Bytes(drivechain.GetWithdrawalData(fee.ToInt().Uint64()))
 	args := TransactionArgs{
 		From:  &from,
 		To:    &treasury,
 		Value: &hexValue,
+		Input: &input,
 	}
 	return s.SendTransaction(ctx, args)
 }

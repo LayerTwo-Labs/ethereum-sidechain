@@ -7,6 +7,7 @@ package drivechain
 import "C"
 import (
 	"crypto/ecdsa"
+	"encoding/binary"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -180,19 +181,44 @@ func FormatDepositAddress(address string) string {
 }
 
 func CreateDeposit(address common.Address, amount uint64, fee uint64) bool {
-	// var weiInSatoshi big.Int
-	// weiInSatoshi.Exp(big.NewInt(10), big.NewInt(10), nil) // There are 10^10 Wei in 1 Satoshi.
-	// var satAmount big.Int
-	// var satFee big.Int
-	// satAmount.Div(amount, &weiInSatoshi)
-	// satFee.Div(fee, &weiInSatoshi)
 	cAddress := C.CString(strings.ToLower(address.Hex()))
-
 	cAmount := C.ulong(amount)
 	cFee := C.ulong(fee)
 	result := C.create_deposit(cAddress, cAmount, cFee)
 	C.free(unsafe.Pointer(cAddress))
 	return bool(result)
+}
+
+func GetWithdrawalData(fee uint64) []byte {
+	feeBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(feeBytes, fee)
+	addressBytes := make([]byte, 20)
+	cAddress := C.get_new_mainchain_address()
+	for i, uchar := range cAddress.address {
+		addressBytes[i] = byte(uchar)
+	}
+	return append(feeBytes, addressBytes...)
+}
+
+func DecodeWithdrawal(amount *big.Int, data []byte) Withdrawal {
+	feeBytes := data[0:8]
+	if len(feeBytes) != 8 {
+		panic("off by one error")
+	}
+	addressBytes := data[8:28]
+	if len(addressBytes) != 20 {
+		panic("off by one error")
+	}
+	var address [20]C.uchar
+	for i, byte := range addressBytes {
+		address[i] = C.uchar(byte)
+	}
+	fee := big.NewInt(int64(binary.BigEndian.Uint64(feeBytes)))
+	return Withdrawal{
+		Address: address,
+		Amount:  amount,
+		Fee:     fee,
+	}
 }
 
 func attemptBmm(criticalHash string, prevMainBlockHash string, amount uint64) {

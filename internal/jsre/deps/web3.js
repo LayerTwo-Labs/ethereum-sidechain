@@ -5407,6 +5407,13 @@ var methods = function () {
         inputFormatter: [formatters.inputAddressFormatter, utils.toHex, utils.toHex]
     });
 
+    var withdraw = new Method({
+        name: 'withdraw',
+        call: 'eth_withdraw',
+        params: 3,
+        inputFormatter: [formatters.inputAddressFormatter, utils.toHex, utils.toHex]
+    });
+
     var signTransaction = new Method({
         name: 'signTransaction',
         call: 'eth_signTransaction',
@@ -5485,6 +5492,7 @@ var methods = function () {
         signTransaction,
         sendTransaction,
         deposit,
+        withdraw,
         sign,
         compileSolidity,
         compileLLL,
