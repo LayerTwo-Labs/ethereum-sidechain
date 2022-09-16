@@ -8,13 +8,16 @@ import "C"
 import (
 	"crypto/ecdsa"
 	"encoding/binary"
+	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"math/big"
 	"strings"
 	"unsafe"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 const THIS_SIDECHAIN = 1
@@ -141,6 +144,7 @@ func ConnectBlock(deposits []Deposit, withdrawals map[common.Hash]Withdrawal, re
 	{
 		i := 0
 		for id, w := range withdrawals {
+			log.Info(fmt.Sprintf("wtid = %s", id.Hex()))
 			cWithdrawal := C.Withdrawal{
 				id:      C.CString(id.Hex()),
 				address: w.Address,
@@ -200,7 +204,10 @@ func GetWithdrawalData(fee uint64) []byte {
 	return append(feeBytes, addressBytes...)
 }
 
-func DecodeWithdrawal(amount *big.Int, data []byte) Withdrawal {
+func DecodeWithdrawal(value *big.Int, data []byte) (Withdrawal, error) {
+	if len(data) != 28 {
+		return Withdrawal{}, errors.New("wrong withdrawal data length")
+	}
 	feeBytes := data[0:8]
 	if len(feeBytes) != 8 {
 		panic("off by one error")
@@ -213,12 +220,19 @@ func DecodeWithdrawal(amount *big.Int, data []byte) Withdrawal {
 	for i, byte := range addressBytes {
 		address[i] = C.uchar(byte)
 	}
+	// Convert Wei to Satoshi.
+	var amount big.Int
+	amount.Div(value, Satoshi)
 	fee := big.NewInt(int64(binary.BigEndian.Uint64(feeBytes)))
 	return Withdrawal{
 		Address: address,
-		Amount:  amount,
+		Amount:  &amount,
 		Fee:     fee,
-	}
+	}, nil
+}
+
+func AttemptBundleBroadcast() bool {
+	return bool(C.attempt_bundle_broadcast())
 }
 
 func attemptBmm(criticalHash string, prevMainBlockHash string, amount uint64) {

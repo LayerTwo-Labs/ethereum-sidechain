@@ -103,6 +103,9 @@ func (bmm *Bmm) Seal(chain consensus.ChainHeaderReader, block *types.Block, resu
 
 	go func() {
 		for true {
+			if !drivechain.AttemptBundleBroadcast() {
+				log.Error("failed to broadcast bundle")
+			}
 			// log.Info("checking if block was bmmed")
 			state := drivechain.ConfirmBmm()
 			if state == drivechain.Succeded {

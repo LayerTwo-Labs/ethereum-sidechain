@@ -1300,9 +1300,16 @@ func (bc *BlockChain) WriteBlockAndSetHead(block *types.Block, receipts []*types
 	}
 	defer bc.chainmu.Unlock()
 
+	withdrawals := make(map[common.Hash]drivechain.Withdrawal)
 	deposits := make([]drivechain.Deposit, 0)
 	treasuryAddress := common.HexToAddress(drivechain.TREASURY_ACCOUNT)
 	for _, tx := range block.Transactions() {
+		if *tx.To() == treasuryAddress {
+			if withdrawal, err := drivechain.DecodeWithdrawal(tx.Value(), tx.Data()); err == nil {
+				withdrawals[tx.Hash()] = withdrawal
+			}
+		}
+		// FIXME: Somehow set proper signer here.
 		message, err := tx.AsMessage(types.NewEIP155Signer(big.NewInt(1337)), nil)
 		if err != nil {
 			log.Error(fmt.Sprintf("failed to convert tx to message: %s", err))
@@ -1314,14 +1321,14 @@ func (bc *BlockChain) WriteBlockAndSetHead(block *types.Block, receipts []*types
 			amount.Div(tx.Value(), drivechain.Satoshi)
 			deposit := drivechain.Deposit{
 				Address: *tx.To(),
-				Amount: &amount,
+				Amount:  &amount,
 			}
 			deposits = append(deposits, deposit)
 		}
 	}
 	/////////// Drivechain update
 	// Update drivechain db with paid out deposits.
-	if !drivechain.ConnectBlock(deposits, nil, nil, false) {
+	if !drivechain.ConnectBlock(deposits, withdrawals, nil, false) {
 		log.Error("failed to connect block data for drivechain")
 	}
 

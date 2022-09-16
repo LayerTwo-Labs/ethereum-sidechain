@@ -61,6 +61,8 @@ bool create_deposit(const char *address, uint64_t amount, uint64_t fee);
 
 struct WithdrawalAddress get_new_mainchain_address(void);
 
+bool attempt_bundle_broadcast(void);
+
 struct Deposits get_deposit_outputs(void);
 
 bool connect_block(struct Deposits deposits,
