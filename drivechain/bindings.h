@@ -7,16 +7,6 @@ typedef struct WithdrawalAddress {
   uint8_t address[20];
 } WithdrawalAddress;
 
-typedef struct Deposit {
-  const char *address;
-  uint64_t amount;
-} Deposit;
-
-typedef struct Deposits {
-  struct Deposit *ptr;
-  uintptr_t len;
-} Deposits;
-
 typedef struct Withdrawal {
   const char *id;
   uint8_t address[20];
@@ -29,8 +19,19 @@ typedef struct Withdrawals {
   uintptr_t len;
 } Withdrawals;
 
+typedef struct Deposit {
+  const char *address;
+  uint64_t amount;
+} Deposit;
+
+typedef struct Deposits {
+  struct Deposit *ptr;
+  uintptr_t len;
+} Deposits;
+
 typedef struct Refund {
   const char *id;
+  uint64_t amount;
 } Refund;
 
 typedef struct Refunds {
@@ -61,7 +62,11 @@ bool create_deposit(const char *address, uint64_t amount, uint64_t fee);
 
 struct WithdrawalAddress get_new_mainchain_address(void);
 
+const char *format_mainchain_address(struct WithdrawalAddress dest);
+
 bool attempt_bundle_broadcast(void);
+
+struct Withdrawals get_unspent_withdrawals(void);
 
 struct Deposits get_deposit_outputs(void);
 
@@ -75,3 +80,5 @@ bool disconnect_block(struct Deposits deposits, bool just_check);
 void free_string(const char *string);
 
 void free_deposits(struct Deposits deposits);
+
+void free_withdrawals(struct Withdrawals withdrawals);

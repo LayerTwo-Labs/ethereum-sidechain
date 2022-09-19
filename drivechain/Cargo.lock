@@ -264,7 +264,6 @@ dependencies = [
  "drivechain",
  "hex",
  "libc",
- "ureq",
 ]
 
 [[package]]

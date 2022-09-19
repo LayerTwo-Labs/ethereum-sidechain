@@ -3803,6 +3803,14 @@ var outputTransactionFormatter = function (tx){
     return tx;
 };
 
+var outputWithdrawalsFormatter = function (withdrawals){
+    for (const id in withdrawals) {
+        withdrawals[id].Amount =  utils.fromWei(withdrawals[id].Amount)
+        withdrawals[id].Fee =  utils.fromWei(withdrawals[id].Fee)
+    }
+    return withdrawals;
+};
+
 /**
  * Formats the output of a transaction receipt to its proper values
  *
@@ -3984,6 +3992,7 @@ module.exports = {
     inputPostFormatter: inputPostFormatter,
     outputBigNumberFormatter: outputBigNumberFormatter,
     outputTransactionFormatter: outputTransactionFormatter,
+    outputWithdrawalsFormatter: outputWithdrawalsFormatter,
     outputTransactionReceiptFormatter: outputTransactionReceiptFormatter,
     outputBlockFormatter: outputBlockFormatter,
     outputLogFormatter: outputLogFormatter,
@@ -5414,6 +5423,19 @@ var methods = function () {
         inputFormatter: [formatters.inputAddressFormatter, utils.toHex, utils.toHex]
     });
 
+    var getUnspentWithdrawals = new Method({
+        name: 'getUnspentWithdrawals',
+        call: 'eth_getUnspentWithdrawals',
+        params: 0,
+        outputFormatter: formatters.outputWithdrawalsFormatter
+    });
+
+    var refund = new Method({
+        name: 'refund',
+        call: 'eth_refund',
+        params: 1,
+    });
+
     var signTransaction = new Method({
         name: 'signTransaction',
         call: 'eth_signTransaction',
@@ -5493,6 +5515,8 @@ var methods = function () {
         sendTransaction,
         deposit,
         withdraw,
+        getUnspentWithdrawals,
+        refund,
         sign,
         compileSolidity,
         compileLLL,

@@ -107,9 +107,14 @@ type Deposit struct {
 }
 
 type Withdrawal struct {
-	Address [20]C.uchar
+	Address [MainchainAddressLength]C.uchar
 	Amount  *big.Int
 	Fee     *big.Int
+}
+
+type Refund struct {
+	Id     common.Hash
+	Amount *big.Int
 }
 
 func GetDepositOutputs() []Deposit {
@@ -125,7 +130,7 @@ func GetDepositOutputs() []Deposit {
 }
 
 // common.Hash here is for transaction hashes.
-func ConnectBlock(deposits []Deposit, withdrawals map[common.Hash]Withdrawal, refunds []common.Hash, just_checking bool) bool {
+func ConnectBlock(deposits []Deposit, withdrawals map[common.Hash]Withdrawal, refunds []Refund, just_checking bool) bool {
 	depositsMemory := C.malloc(C.size_t(len(deposits)) * C.size_t(unsafe.Sizeof(C.Deposit{})))
 	depositsSlice := (*[1<<30 - 1]C.Deposit)(depositsMemory)
 	for i, deposit := range deposits {
@@ -164,7 +169,8 @@ func ConnectBlock(deposits []Deposit, withdrawals map[common.Hash]Withdrawal, re
 	refundsSlice := (*[1<<30 - 1]C.Refund)(refundsMemory)
 	for i, r := range refunds {
 		cRefund := C.Refund{
-			id: C.CString(r.Hex()),
+			id:     C.CString(r.Id.Hex()),
+			amount: C.ulong(r.Amount.Uint64()),
 		}
 		refundsSlice[i] = cRefund
 	}
@@ -193,10 +199,15 @@ func CreateDeposit(address common.Address, amount uint64, fee uint64) bool {
 	return bool(result)
 }
 
+const (
+	FeeLength              = 8
+	MainchainAddressLength = 20
+)
+
 func GetWithdrawalData(fee uint64) []byte {
-	feeBytes := make([]byte, 8)
+	feeBytes := make([]byte, FeeLength)
 	binary.BigEndian.PutUint64(feeBytes, fee)
-	addressBytes := make([]byte, 20)
+	addressBytes := make([]byte, MainchainAddressLength)
 	cAddress := C.get_new_mainchain_address()
 	for i, uchar := range cAddress.address {
 		addressBytes[i] = byte(uchar)
@@ -205,18 +216,18 @@ func GetWithdrawalData(fee uint64) []byte {
 }
 
 func DecodeWithdrawal(value *big.Int, data []byte) (Withdrawal, error) {
-	if len(data) != 28 {
+	if len(data) != FeeLength+MainchainAddressLength {
 		return Withdrawal{}, errors.New("wrong withdrawal data length")
 	}
-	feeBytes := data[0:8]
-	if len(feeBytes) != 8 {
+	feeBytes := data[:FeeLength]
+	if len(feeBytes) != FeeLength {
 		panic("off by one error")
 	}
-	addressBytes := data[8:28]
-	if len(addressBytes) != 20 {
+	addressBytes := data[FeeLength : FeeLength+MainchainAddressLength]
+	if len(addressBytes) != MainchainAddressLength {
 		panic("off by one error")
 	}
-	var address [20]C.uchar
+	var address [MainchainAddressLength]C.uchar
 	for i, byte := range addressBytes {
 		address[i] = C.uchar(byte)
 	}
@@ -233,6 +244,36 @@ func DecodeWithdrawal(value *big.Int, data []byte) (Withdrawal, error) {
 
 func AttemptBundleBroadcast() bool {
 	return bool(C.attempt_bundle_broadcast())
+}
+
+func GetUnspentWithdrawals() map[common.Hash]Withdrawal {
+	ptrWithdrawals := C.get_unspent_withdrawals()
+	cWithdrawals := unsafe.Slice(ptrWithdrawals.ptr, ptrWithdrawals.len)
+	withdrawals := make(map[common.Hash]Withdrawal)
+	for _, cWithdrawal := range cWithdrawals {
+		var amount big.Int
+		var fee big.Int
+		amount.Mul(big.NewInt(int64(cWithdrawal.amount)), Satoshi)
+		fee.Mul(big.NewInt(int64(cWithdrawal.fee)), Satoshi)
+		withdrawal := Withdrawal{
+			Address: cWithdrawal.address,
+			Amount:  &amount,
+			Fee:     &fee,
+		}
+		strId := C.GoString(cWithdrawal.id)
+		id := common.HexToHash(strId)
+		withdrawals[id] = withdrawal
+	}
+	C.free_withdrawals(ptrWithdrawals)
+	return withdrawals
+}
+
+func FormatMainchainAddress(dest [MainchainAddressLength]C.uchar) string {
+	withdrawalAddress := C.WithdrawalAddress{address: dest}
+	cAddress := C.format_mainchain_address(withdrawalAddress)
+	address := C.GoString(cAddress)
+	C.free_string(cAddress)
+	return address
 }
 
 func attemptBmm(criticalHash string, prevMainBlockHash string, amount uint64) {

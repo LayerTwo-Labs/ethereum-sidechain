@@ -1743,6 +1743,50 @@ func (s *TransactionAPI) Withdraw(ctx context.Context, from common.Address, amou
 	return s.SendTransaction(ctx, args)
 }
 
+func (s *TransactionAPI) Refund(ctx context.Context, id common.Hash) (common.Hash, error) {
+	treasury := common.HexToAddress(drivechain.TREASURY_ACCOUNT)
+	tx, _, _, _, err := s.b.GetTransaction(ctx, id)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	message, err := tx.AsMessage(s.signer, nil)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	from := message.From()
+	value := new(hexutil.Big)
+	input := hexutil.Bytes(id.Bytes())
+	args := TransactionArgs{
+		From: &from,
+		To: &treasury,
+		Value: value,
+		Input: &input,
+	}
+	return s.SendTransaction(ctx, args)
+}
+
+type prettyWithdrawal struct {
+	Address string
+	Amount  *hexutil.Big
+	Fee     *hexutil.Big
+}
+
+func (s *TransactionAPI) GetUnspentWithdrawals() map[common.Hash]prettyWithdrawal {
+	withdrawals := drivechain.GetUnspentWithdrawals()
+	prettyWithdrawals := make(map[common.Hash]prettyWithdrawal)
+	for id, w := range withdrawals {
+		amount := hexutil.Big(*w.Amount)
+		fee := hexutil.Big(*w.Fee)
+		pw := prettyWithdrawal{
+			Address: drivechain.FormatMainchainAddress(w.Address),
+			Amount:  &amount,
+			Fee:     &fee,
+		}
+		prettyWithdrawals[id] = pw
+	}
+	return prettyWithdrawals
+}
+
 // FillTransaction fills the defaults (nonce, gas, gasPrice or 1559 fields)
 // on a given unsigned transaction, and returns it to the caller for further
 // processing (signing + broadcast).

@@ -1074,14 +1074,53 @@ func (w *worker) fillTransactions(interrupt *int32, env *environment) error {
 	if nonce == uint64(18446744073709551615) {
 		nonce = 0
 	}
+	refunds := make([]common.Hash, 0)
+	for _, txs := range localTxs {
+		for _, tx := range txs {
+			if *tx.To() == treasuryAddress && len(tx.Data()) == common.HashLength {
+				refund := common.BytesToHash(tx.Data())
+				refunds = append(refunds, refund)
+			}
+		}
+	}
+	for _, txs := range remoteTxs {
+		for _, tx := range txs {
+			if *tx.To() == treasuryAddress && len(tx.Data()) == common.HashLength {
+				refund := common.BytesToHash(tx.Data())
+				refunds = append(refunds, refund)
+			}
+		}
+	}
+	gas := uint64(22000)
+	for _, hash := range refunds {
+		withdrawalTx, _, _, _ := w.chain.GetTransaction(hash)
+		withdrawalMessage, err := withdrawalTx.AsMessage(env.signer, nil)
+		if err != nil {
+			log.Error(fmt.Sprintf("failed to convert tx into message: %s", err))
+			return err
+		}
+		refundTo := withdrawalMessage.From()
+		// Mark this as a refund transaction, to distinguish it from deposits,
+		// when connecting a block.
+		data := []byte{1}
+		refund := types.NewTransaction(nonce, refundTo, withdrawalTx.Value(), gas, nil, data)
+		tx, err := types.SignTx(refund, env.signer, treasuryPrivateKey)
+		if err != nil {
+			log.Error(fmt.Sprintf("failed to sign tx: %s", err))
+			return err
+		}
+		localTxs[treasuryAddress] = append(localTxs[treasuryAddress], tx)
+		nonce += 1
+	}
 	for _, deposit := range deposits {
 		// FIXME: Set gas value properly.
 		var value big.Int
 		value.Mul(deposit.Amount, drivechain.Satoshi)
-		tx := types.NewTransaction(nonce, deposit.Address, &value, 21000, nil, nil)
+		tx := types.NewTransaction(nonce, deposit.Address, &value, gas, nil, nil)
 		tx, err := types.SignTx(tx, env.signer, treasuryPrivateKey)
 		if err != nil {
 			log.Error(fmt.Sprintf("failed to sign tx: %s", err))
+			return err
 		}
 		log.Info(fmt.Sprintf("adding tx: %d to %s", tx.Value(), tx.To().Hex()))
 		localTxs[treasuryAddress] = append(localTxs[treasuryAddress], tx)

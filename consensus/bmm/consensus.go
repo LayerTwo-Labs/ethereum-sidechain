@@ -4,6 +4,12 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"math/big"
+	"path/filepath"
+	"time"
+
+	"golang.org/x/crypto/sha3"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -14,10 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
-	"golang.org/x/crypto/sha3"
-	"math/big"
-	"path/filepath"
-	"time"
 )
 
 var (
@@ -92,8 +94,6 @@ func (bmm *Bmm) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *t
 }
 
 func (bmm *Bmm) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
-	// FIXME: Add RPC for formatting an address.
-	log.Info(drivechain.FormatDepositAddress("0x723d452ffd34dde633def296c48670c6df132751"))
 	// FIXME: Make it possible for the miner to change the amount.
 	amount := uint64(10000)
 	header := block.Header()
