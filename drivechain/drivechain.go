@@ -164,7 +164,6 @@ func ConnectBlock(deposits []Deposit, withdrawals map[common.Hash]Withdrawal, re
 		ptr: &withdrawalsSlice[0],
 		len: C.ulong(len(withdrawals)),
 	}
-	// this is an array of C strings
 	refundsMemory := C.malloc(C.size_t(len(withdrawals)) * C.size_t(unsafe.Sizeof(C.Refund{})))
 	refundsSlice := (*[1<<30 - 1]C.Refund)(refundsMemory)
 	for i, r := range refunds {
@@ -179,6 +178,47 @@ func ConnectBlock(deposits []Deposit, withdrawals map[common.Hash]Withdrawal, re
 		len: C.ulong(len(refunds)),
 	}
 	return bool(C.connect_block(cDeposits, cWithdrawals, cRefunds, C.bool(just_checking)))
+}
+
+func DisconnectBlock(deposits []Deposit, withdrawals []common.Hash, refunds []common.Hash, just_checking bool) bool {
+	depositsMemory := C.malloc(C.size_t(len(deposits)) * C.size_t(unsafe.Sizeof(C.Deposit{})))
+	depositsSlice := (*[1<<30 - 1]C.Deposit)(depositsMemory)
+	for i, deposit := range deposits {
+		cDeposit := C.Deposit{
+			address: C.CString(strings.ToLower(deposit.Address.String())),
+			amount:  C.ulong(deposit.Amount.Uint64()),
+		}
+		depositsSlice[i] = cDeposit
+	}
+	cDeposits := C.Deposits{
+		ptr: &depositsSlice[0],
+		len: C.ulong(len(deposits)),
+	}
+	withdrawalsMemory := C.malloc(C.size_t(len(withdrawals)) * C.size_t(unsafe.Sizeof(C.Withdrawal{})))
+	withdrawalsSlice := (*[1<<30 - 1]C.Withdrawal)(withdrawalsMemory)
+	for i, id := range withdrawals {
+		cWithdrawal := C.Withdrawal{
+			id: C.CString(id.Hex()),
+		}
+		withdrawalsSlice[i] = cWithdrawal
+	}
+	cWithdrawals := C.Withdrawals{
+		ptr: &withdrawalsSlice[0],
+		len: C.ulong(len(withdrawals)),
+	}
+	refundsMemory := C.malloc(C.size_t(len(withdrawals)) * C.size_t(unsafe.Sizeof(C.Refund{})))
+	refundsSlice := (*[1<<30 - 1]C.Refund)(refundsMemory)
+	for i, id := range refunds {
+		cRefund := C.Refund{
+			id: C.CString(id.Hex()),
+		}
+		refundsSlice[i] = cRefund
+	}
+	cRefunds := C.Refunds{
+		ptr: &refundsSlice[0],
+		len: C.ulong(len(refunds)),
+	}
+	return bool(C.disconnect_block(cDeposits, cWithdrawals, cRefunds, C.bool(just_checking)))
 }
 
 func FormatDepositAddress(address string) string {
@@ -300,15 +340,15 @@ func ConfirmBmm() BmmState {
 	return BmmState(C.confirm_bmm())
 }
 
-func verifyBmm(mainBlockHash string, criticalHash string) bool {
-	cMainBlockHash := C.CString(mainBlockHash)
+func verifyBmm(prevMainBlockHash string, criticalHash string) bool {
+	cPrevMainBlockHash := C.CString(prevMainBlockHash)
 	cCriticalHash := C.CString(criticalHash)
-	result := bool(C.verify_bmm(cMainBlockHash, cCriticalHash))
-	C.free(unsafe.Pointer(cMainBlockHash))
+	result := bool(C.verify_bmm(cPrevMainBlockHash, cCriticalHash))
+	C.free(unsafe.Pointer(cPrevMainBlockHash))
 	C.free(unsafe.Pointer(cCriticalHash))
 	return result
 }
 
-func VerifyBmm(mainBlockHash common.Hash, criticalHash common.Hash) bool {
-	return verifyBmm(mainBlockHash.Hex()[2:], criticalHash.Hex()[2:])
+func VerifyBmm(prevMainBlockHash common.Hash, criticalHash common.Hash) bool {
+	return verifyBmm(prevMainBlockHash.Hex()[2:], criticalHash.Hex()[2:])
 }

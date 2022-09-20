@@ -52,7 +52,7 @@ func (bmm *Bmm) Author(header *types.Header) (common.Address, error) {
 // FIXME: Figure out why VerifyHeader is never called in dev mode.
 // FIXME: Add non PoW checks from ethash consensus engine.
 func (bmm *Bmm) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
-	log.Info("verifying ", header.PrevMainBlockHash)
+	log.Info(fmt.Sprintf("verifying %s", header.PrevMainBlockHash.Hex()))
 	if !drivechain.VerifyBmm(header.PrevMainBlockHash, header.Hash()) {
 		return errors.New("invalid bmm")
 	}

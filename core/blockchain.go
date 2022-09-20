@@ -1291,15 +1291,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	return nil
 }
 
-// WriteBlockAndSetHead writes the given block and all associated state to the database,
-// and applies the block as the new chain head.
-func (bc *BlockChain) WriteBlockAndSetHead(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
-	log.Info("WriteBlockAndSetHead")
-	if !bc.chainmu.TryLock() {
-		return NonStatTy, errChainStopped
-	}
-	defer bc.chainmu.Unlock()
-
+func (bc *BlockChain) ConnectBlock(block *types.Block) error {
 	withdrawals := make(map[common.Hash]drivechain.Withdrawal)
 	deposits := make([]drivechain.Deposit, 0)
 	refunds := make([]drivechain.Refund, 0)
@@ -1366,7 +1358,7 @@ func (bc *BlockChain) WriteBlockAndSetHead(block *types.Block, receipts []*types
 	}
 	for _, amount := range refundAmounts {
 		if amount.Cmp(common.Big0) != 0 {
-			return NonStatTy, errors.New("wrong refund payouts")
+			return errors.New("wrong refund payouts")
 		}
 	}
 	/////////// Drivechain update
@@ -1374,6 +1366,72 @@ func (bc *BlockChain) WriteBlockAndSetHead(block *types.Block, receipts []*types
 	if !drivechain.ConnectBlock(deposits, withdrawals, refunds, false) {
 		log.Error("failed to connect block data for drivechain")
 		err := errors.New("failed to connect block data for drivechain")
+		return err
+	}
+	return nil
+}
+
+func (bc *BlockChain) DisconnectBlock(block *types.Block) error {
+	log.Info(fmt.Sprintf("Disconnecting block: %s", block.Hash().Hex()))
+	treasuryAddress := common.HexToAddress(drivechain.TREASURY_ACCOUNT)
+	deposits := make([]drivechain.Deposit, 0)
+	withdrawals := make([]common.Hash, 0)
+	refunds := make([]common.Hash, 0)
+	blockNumber := big.NewInt(int64(*bc.hc.GetBlockNumber(block.ParentHash())))
+	for _, tx := range block.Transactions() {
+		if *tx.To() == treasuryAddress {
+			if _, err := drivechain.DecodeWithdrawal(tx.Value(), tx.Data()); err == nil {
+				withdrawals = append(withdrawals, tx.Hash())
+			}
+		}
+		message, err := tx.AsMessage(types.MakeSigner(bc.chainConfig, blockNumber), nil)
+		if err != nil {
+			log.Error(fmt.Sprintf("failed to convert tx to message: %s", err))
+		}
+		if message.From() == treasuryAddress {
+			if len(message.Data()) == 0 {
+				// Handle. deposits.
+				var amount big.Int
+				amount.Div(tx.Value(), drivechain.Satoshi)
+				deposit := drivechain.Deposit{
+					Address: *tx.To(),
+					Amount:  &amount,
+				}
+				deposits = append(deposits, deposit)
+			}
+		} else if *message.To() == treasuryAddress && len(message.Data()) == common.HashLength && message.Value().Cmp(common.Big0) == 0 {
+			hash := common.BytesToHash(message.Data())
+			withdrawalTx, _, _, _ := bc.GetTransaction(hash)
+			withdrawalMessage, err := withdrawalTx.AsMessage(types.MakeSigner(bc.chainConfig, blockNumber), nil)
+			if err != nil {
+				log.Error(fmt.Sprintf("failed to convert tx to message: %s", err))
+			}
+			if message.From() != withdrawalMessage.From() {
+				log.Error(fmt.Sprintf("refund request from: %s is not equal to withdrawal from: %s", message.From().Hex(), withdrawalMessage.From().Hex()))
+				continue
+			}
+			refunds = append(refunds, withdrawalTx.Hash())
+		}
+	}
+	/////////// Drivechain update
+	// Update drivechain db with paid out deposits and with new withdrawals.
+	if !drivechain.DisconnectBlock(deposits, withdrawals, refunds, false) {
+		log.Error("failed to connect block data for drivechain")
+		err := errors.New("failed to connect block data for drivechain")
+		return err
+	}
+	return nil
+}
+
+// WriteBlockAndSetHead writes the given block and all associated state to the database,
+// and applies the block as the new chain head.
+func (bc *BlockChain) WriteBlockAndSetHead(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
+	log.Info("WriteBlockAndSetHead")
+	if !bc.chainmu.TryLock() {
+		return NonStatTy, errChainStopped
+	}
+	defer bc.chainmu.Unlock()
+	if err := bc.ConnectBlock(block); err != nil {
 		return NonStatTy, err
 	}
 	return bc.writeBlockAndSetHead(block, receipts, logs, state, emitHeadEvent)
@@ -1386,6 +1444,20 @@ func (bc *BlockChain) writeBlockAndSetHead(block *types.Block, receipts []*types
 		return NonStatTy, err
 	}
 	currentBlock := bc.CurrentBlock()
+	// Handle mainchain Reorg /////
+	if !drivechain.VerifyBmm(currentBlock.PrevMainBlockHash(), currentBlock.Hash()) {
+		if err := bc.DisconnectBlock(block); err != nil {
+			return NonStatTy, err
+		}
+		block = currentBlock
+	}
+	for !drivechain.VerifyBmm(block.PrevMainBlockHash(), block.Hash()) {
+		if err := bc.DisconnectBlock(block); err != nil {
+			return NonStatTy, err
+		}
+		block = bc.GetBlock(block.ParentHash(), block.NumberU64()-1)
+	}
+	// Handle mainchain Reorg /////
 	reorg, err := bc.forker.ReorgNeeded(currentBlock.Header(), block.Header())
 	if err != nil {
 		return NonStatTy, err
@@ -2129,7 +2201,15 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 	} else {
 		// len(newChain) == 0 && len(oldChain) > 0
 		// rewind the canonical chain to a lower point.
-		log.Error("Impossible reorg, please file an issue", "oldnum", oldBlock.Number(), "oldhash", oldBlock.Hash(), "oldblocks", len(oldChain), "newnum", newBlock.Number(), "newhash", newBlock.Hash(), "newblocks", len(newChain))
+		// log.Error("Impossible reorg, please file an issue", "oldnum", oldBlock.Number(), "oldhash", oldBlock.Hash(), "oldblocks", len(oldChain), "newnum", newBlock.Number(), "newhash", newBlock.Hash(), "newblocks", len(newChain))
+
+		// NOTE: This is how reorgs happen with BMM. The when mainchain blocks
+		// are disconnected we rewind the sidechain to the block with a BMM
+		// commitment that points to the latest valid mainchain block.
+		//
+		// So this is not an error.
+		log.Info("There was a mainchain reorg")
+		log.Info("Rewinding sidechain back to the latest valid BMM commitment")
 	}
 	// Insert the new chain(except the head block(reverse order)),
 	// taking care of the proper incremental order.

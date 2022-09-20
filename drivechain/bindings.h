@@ -75,7 +75,10 @@ bool connect_block(struct Deposits deposits,
                    struct Refunds refunds,
                    bool just_check);
 
-bool disconnect_block(struct Deposits deposits, bool just_check);
+bool disconnect_block(struct Deposits deposits,
+                      struct Withdrawals withdrawals,
+                      struct Refunds refunds,
+                      bool just_check);
 
 void free_string(const char *string);
 

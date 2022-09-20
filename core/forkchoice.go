@@ -85,7 +85,10 @@ func (f *ForkChoice) ReorgNeeded(current *types.Header, header *types.Header) (b
 	// Accept the new header as the chain head if the transition
 	// is already triggered. We assume all the headers after the
 	// transition come from the trusted consensus layer.
-	if ttd := f.chain.Config().TerminalTotalDifficulty; ttd != nil && ttd.Cmp(externTd) <= 0 {
+	// if ttd := f.chain.Config().TerminalTotalDifficulty; ttd != nil && ttd.Cmp(externTd) <= 0 {
+
+	// BMM is a trusted consensus layer, so
+	if true {
 		return true, nil
 	}
 	// If the total difficulty is higher than our known, add it to the canonical chain
