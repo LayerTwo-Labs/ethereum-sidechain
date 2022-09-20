@@ -7,8 +7,10 @@
 GOBIN = ./build/bin
 GO ?= latest
 GORUN = env GO111MODULE=on go run
+CARGO = cargo build --manifest-path ./drivechain/Cargo.toml
 
 geth:
+	$(CARGO)
 	$(GORUN) build/ci.go install ./cmd/geth
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
