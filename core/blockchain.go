@@ -1377,7 +1377,10 @@ func (bc *BlockChain) DisconnectBlock(block *types.Block) error {
 	deposits := make([]drivechain.Deposit, 0)
 	withdrawals := make([]common.Hash, 0)
 	refunds := make([]common.Hash, 0)
-	blockNumber := big.NewInt(int64(*bc.hc.GetBlockNumber(block.ParentHash())))
+	blockNumber := big.NewInt(0)
+	if block.NumberU64() > 0 {
+		blockNumber = big.NewInt(int64(*bc.hc.GetBlockNumber(block.ParentHash())))
+	}
 	for _, tx := range block.Transactions() {
 		if *tx.To() == treasuryAddress {
 			if _, err := drivechain.DecodeWithdrawal(tx.Value(), tx.Data()); err == nil {
@@ -1445,7 +1448,7 @@ func (bc *BlockChain) writeBlockAndSetHead(block *types.Block, receipts []*types
 	}
 	currentBlock := bc.CurrentBlock()
 	// Handle mainchain Reorg /////
-	if !drivechain.VerifyBmm(currentBlock.PrevMainBlockHash(), currentBlock.Hash()) {
+	if currentBlock.NumberU64() > 0 && !drivechain.VerifyBmm(currentBlock.PrevMainBlockHash(), currentBlock.Hash()) {
 		if err := bc.DisconnectBlock(block); err != nil {
 			return NonStatTy, err
 		}
