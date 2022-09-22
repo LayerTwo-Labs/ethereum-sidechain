@@ -352,3 +352,10 @@ func verifyBmm(prevMainBlockHash string, criticalHash string) bool {
 func VerifyBmm(prevMainBlockHash common.Hash, criticalHash common.Hash) bool {
 	return verifyBmm(prevMainBlockHash.Hex()[2:], criticalHash.Hex()[2:])
 }
+
+func IsWithdrawalSpent(id common.Hash) bool {
+	cId := C.CString(id.Hex())
+	result := bool(C.is_outpoint_spent(cId))
+	C.free(unsafe.Pointer(cId))
+	return result
+}

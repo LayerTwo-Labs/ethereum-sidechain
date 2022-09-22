@@ -1074,25 +1074,49 @@ func (w *worker) fillTransactions(interrupt *int32, env *environment) error {
 	if nonce == uint64(18446744073709551615) {
 		nonce = 0
 	}
-	refunds := make([]common.Hash, 0)
-	for _, txs := range localTxs {
+	refunds := make(map[common.Hash]bool)
+	for from, txs := range localTxs {
+		filteredTxs := make([]*types.Transaction, 0, len(txs))
 		for _, tx := range txs {
 			if *tx.To() == treasuryAddress && len(tx.Data()) == common.HashLength {
 				refund := common.BytesToHash(tx.Data())
-				refunds = append(refunds, refund)
+				_, ok := refunds[refund]
+				if ok {
+					continue;
+				}
+				refunds[refund] = true
 			}
+			filteredTxs = append(filteredTxs, tx)
+		}
+		log.Info(fmt.Sprintf("len(txs) = %d, len(filteredTxs) = %d", len(txs), len(filteredTxs)))
+		if len(filteredTxs) == 0 {
+			delete(localTxs, from)
+		} else {
+			localTxs[from] = filteredTxs
 		}
 	}
-	for _, txs := range remoteTxs {
+	for from, txs := range remoteTxs {
+		filteredTxs := make([]*types.Transaction, 0, len(txs))
 		for _, tx := range txs {
 			if *tx.To() == treasuryAddress && len(tx.Data()) == common.HashLength {
 				refund := common.BytesToHash(tx.Data())
-				refunds = append(refunds, refund)
+				_, ok := refunds[refund]
+				if ok {
+					continue;
+				}
+				refunds[refund] = true
 			}
+			filteredTxs = append(filteredTxs, tx)
+		}
+		log.Info(fmt.Sprintf("len(txs) = %d, len(filteredTxs) = %d", len(txs), len(filteredTxs)))
+		if len(filteredTxs) == 0 {
+			delete(remoteTxs, from)
+		} else {
+			remoteTxs[from] = filteredTxs
 		}
 	}
 	gas := uint64(22000)
-	for _, hash := range refunds {
+	for hash := range refunds {
 		withdrawalTx, _, _, _ := w.chain.GetTransaction(hash)
 		withdrawalMessage, err := withdrawalTx.AsMessage(env.signer, nil)
 		if err != nil {

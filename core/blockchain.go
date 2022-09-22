@@ -1334,9 +1334,11 @@ func (bc *BlockChain) ConnectBlock(block *types.Block) error {
 			}
 			address := withdrawalMessage.From()
 			_, ok := refundAmounts[address]
-			if !ok {
-				refundAmounts[address] = big.NewInt(0)
+			if ok {
+				log.Warn(fmt.Sprintf("duplicate refund requests for: %s", withdrawalTx.Hash().Hex()))
+				continue
 			}
+			refundAmounts[address] = big.NewInt(0)
 			refundAmounts[address].Add(refundAmounts[address], withdrawalMessage.Value())
 			var satAmount big.Int
 			satAmount.Div(withdrawalTx.Value(), drivechain.Satoshi)
@@ -1376,7 +1378,7 @@ func (bc *BlockChain) DisconnectBlock(block *types.Block) error {
 	treasuryAddress := common.HexToAddress(drivechain.TREASURY_ACCOUNT)
 	deposits := make([]drivechain.Deposit, 0)
 	withdrawals := make([]common.Hash, 0)
-	refunds := make([]common.Hash, 0)
+	refunds := make(map[common.Hash]bool)
 	blockNumber := big.NewInt(0)
 	if block.NumberU64() > 0 {
 		blockNumber = big.NewInt(int64(*bc.hc.GetBlockNumber(block.ParentHash())))
@@ -1413,12 +1415,18 @@ func (bc *BlockChain) DisconnectBlock(block *types.Block) error {
 				log.Error(fmt.Sprintf("refund request from: %s is not equal to withdrawal from: %s", message.From().Hex(), withdrawalMessage.From().Hex()))
 				continue
 			}
-			refunds = append(refunds, withdrawalTx.Hash())
+			refunds[withdrawalTx.Hash()] = true
 		}
+	}
+	refundsSlice := make([]common.Hash, len(refunds))
+	i := 0
+	for hash := range refunds {
+		refundsSlice[i] = hash
+		i += 1
 	}
 	/////////// Drivechain update
 	// Update drivechain db with paid out deposits and with new withdrawals.
-	if !drivechain.DisconnectBlock(deposits, withdrawals, refunds, false) {
+	if !drivechain.DisconnectBlock(deposits, withdrawals, refundsSlice, false) {
 		log.Error("failed to connect block data for drivechain")
 		err := errors.New("failed to connect block data for drivechain")
 		return err
@@ -1454,7 +1462,7 @@ func (bc *BlockChain) writeBlockAndSetHead(block *types.Block, receipts []*types
 		}
 		block = currentBlock
 	}
-	for !drivechain.VerifyBmm(block.PrevMainBlockHash(), block.Hash()) {
+	for currentBlock.NumberU64() > 0 && !drivechain.VerifyBmm(block.PrevMainBlockHash(), block.Hash()) {
 		if err := bc.DisconnectBlock(block); err != nil {
 			return NonStatTy, err
 		}

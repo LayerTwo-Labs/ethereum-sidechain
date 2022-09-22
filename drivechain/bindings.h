@@ -80,6 +80,8 @@ bool disconnect_block(struct Deposits deposits,
                       struct Refunds refunds,
                       bool just_check);
 
+bool is_outpoint_spent(const char *outpoint);
+
 void free_string(const char *string);
 
 void free_deposits(struct Deposits deposits);

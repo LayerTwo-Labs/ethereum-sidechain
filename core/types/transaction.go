@@ -39,6 +39,7 @@ var (
 	ErrInvalidTxType        = errors.New("transaction type not valid in this context")
 	ErrTxTypeNotSupported   = errors.New("transaction type not supported")
 	ErrGasFeeCapTooLow      = errors.New("fee cap less than base fee")
+	ErrRefundSpent          = errors.New("withdrawal was already spent or refunded")
 	errShortTypedTx         = errors.New("typed transaction too short")
 )
 
