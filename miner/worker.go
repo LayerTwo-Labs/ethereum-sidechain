@@ -1078,7 +1078,7 @@ func (w *worker) fillTransactions(interrupt *int32, env *environment) error {
 	for from, txs := range localTxs {
 		filteredTxs := make([]*types.Transaction, 0, len(txs))
 		for _, tx := range txs {
-			if *tx.To() == treasuryAddress && len(tx.Data()) == common.HashLength {
+			if tx.To() != nil && *tx.To() == treasuryAddress && len(tx.Data()) == common.HashLength {
 				refund := common.BytesToHash(tx.Data())
 				_, ok := refunds[refund]
 				if ok {
@@ -1098,7 +1098,7 @@ func (w *worker) fillTransactions(interrupt *int32, env *environment) error {
 	for from, txs := range remoteTxs {
 		filteredTxs := make([]*types.Transaction, 0, len(txs))
 		for _, tx := range txs {
-			if *tx.To() == treasuryAddress && len(tx.Data()) == common.HashLength {
+			if tx.To() != nil && *tx.To() == treasuryAddress && len(tx.Data()) == common.HashLength {
 				refund := common.BytesToHash(tx.Data())
 				_, ok := refunds[refund]
 				if ok {
@@ -1146,7 +1146,6 @@ func (w *worker) fillTransactions(interrupt *int32, env *environment) error {
 			log.Error(fmt.Sprintf("failed to sign tx: %s", err))
 			return err
 		}
-		log.Info(fmt.Sprintf("adding tx: %d to %s", tx.Value(), tx.To().Hex()))
 		localTxs[treasuryAddress] = append(localTxs[treasuryAddress], tx)
 		nonce += 1
 	}

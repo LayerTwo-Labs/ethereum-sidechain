@@ -586,7 +586,7 @@ func (pool *TxPool) local() map[common.Address]types.Transactions {
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	treasuryAddress := common.HexToAddress(drivechain.TREASURY_ACCOUNT)
-	if *tx.To() == treasuryAddress && len(tx.Data()) == common.HashLength {
+	if tx.To() != nil && *tx.To() == treasuryAddress && len(tx.Data()) == common.HashLength {
 		refund := common.BytesToHash(tx.Data())
 		if drivechain.IsWithdrawalSpent(refund) {
 			return types.ErrRefundSpent

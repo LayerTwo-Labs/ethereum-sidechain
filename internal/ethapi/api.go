@@ -265,7 +265,6 @@ func NewEthereumAccountAPI(am *accounts.Manager) *EthereumAccountAPI {
 
 // Accounts returns the collection of accounts this node manages.
 func (s *EthereumAccountAPI) Accounts() []common.Address {
-	log.Info("called Accounts()")
 	return s.am.Accounts()
 }
 

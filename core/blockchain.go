@@ -1299,7 +1299,7 @@ func (bc *BlockChain) ConnectBlock(block *types.Block) error {
 	treasuryAddress := common.HexToAddress(drivechain.TREASURY_ACCOUNT)
 	blockNumber := big.NewInt(int64(*bc.hc.GetBlockNumber(block.ParentHash())))
 	for _, tx := range block.Transactions() {
-		if *tx.To() == treasuryAddress {
+		if tx.To() != nil && *tx.To() == treasuryAddress {
 			if withdrawal, err := drivechain.DecodeWithdrawal(tx.Value(), tx.Data()); err == nil {
 				withdrawals[tx.Hash()] = withdrawal
 			}
@@ -1308,45 +1308,45 @@ func (bc *BlockChain) ConnectBlock(block *types.Block) error {
 		if err != nil {
 			log.Error(fmt.Sprintf("failed to convert tx to message: %s", err))
 		}
-		log.Info(fmt.Sprintf("connecting tx: %d to %s", tx.Value(), tx.To().Hex()))
-		log.Info(fmt.Sprintf("from =  %s", message.From().Hex()))
-		if message.From() == treasuryAddress {
-			if len(message.Data()) == 0 {
-				// Handle. deposits.
-				var amount big.Int
-				amount.Div(tx.Value(), drivechain.Satoshi)
-				deposit := drivechain.Deposit{
-					Address: *tx.To(),
-					Amount:  &amount,
+		if tx.To() != nil {
+			if message.From() == treasuryAddress {
+				if len(message.Data()) == 0 {
+					// Handle. deposits.
+					var amount big.Int
+					amount.Div(tx.Value(), drivechain.Satoshi)
+					deposit := drivechain.Deposit{
+						Address: *tx.To(),
+						Amount:  &amount,
+					}
+					deposits = append(deposits, deposit)
 				}
-				deposits = append(deposits, deposit)
+			} else if *tx.To() == treasuryAddress && len(message.Data()) == common.HashLength && message.Value().Cmp(common.Big0) == 0 {
+				hash := common.BytesToHash(message.Data())
+				withdrawalTx, _, _, _ := bc.GetTransaction(hash)
+				withdrawalMessage, err := withdrawalTx.AsMessage(types.MakeSigner(bc.chainConfig, blockNumber), nil)
+				if err != nil {
+					log.Error(fmt.Sprintf("failed to convert tx to message: %s", err))
+				}
+				if message.From() != withdrawalMessage.From() {
+					log.Error(fmt.Sprintf("refund request from: %s is not equal to withdrawal from: %s", message.From().Hex(), withdrawalMessage.From().Hex()))
+					continue
+				}
+				address := withdrawalMessage.From()
+				_, ok := refundAmounts[address]
+				if ok {
+					log.Warn(fmt.Sprintf("duplicate refund requests for: %s", withdrawalTx.Hash().Hex()))
+					continue
+				}
+				refundAmounts[address] = big.NewInt(0)
+				refundAmounts[address].Add(refundAmounts[address], withdrawalMessage.Value())
+				var satAmount big.Int
+				satAmount.Div(withdrawalTx.Value(), drivechain.Satoshi)
+				refund := drivechain.Refund{
+					Id:     withdrawalTx.Hash(),
+					Amount: &satAmount,
+				}
+				refunds = append(refunds, refund)
 			}
-		} else if *message.To() == treasuryAddress && len(message.Data()) == common.HashLength && message.Value().Cmp(common.Big0) == 0 {
-			hash := common.BytesToHash(message.Data())
-			withdrawalTx, _, _, _ := bc.GetTransaction(hash)
-			withdrawalMessage, err := withdrawalTx.AsMessage(types.MakeSigner(bc.chainConfig, blockNumber), nil)
-			if err != nil {
-				log.Error(fmt.Sprintf("failed to convert tx to message: %s", err))
-			}
-			if message.From() != withdrawalMessage.From() {
-				log.Error(fmt.Sprintf("refund request from: %s is not equal to withdrawal from: %s", message.From().Hex(), withdrawalMessage.From().Hex()))
-				continue
-			}
-			address := withdrawalMessage.From()
-			_, ok := refundAmounts[address]
-			if ok {
-				log.Warn(fmt.Sprintf("duplicate refund requests for: %s", withdrawalTx.Hash().Hex()))
-				continue
-			}
-			refundAmounts[address] = big.NewInt(0)
-			refundAmounts[address].Add(refundAmounts[address], withdrawalMessage.Value())
-			var satAmount big.Int
-			satAmount.Div(withdrawalTx.Value(), drivechain.Satoshi)
-			refund := drivechain.Refund{
-				Id:     withdrawalTx.Hash(),
-				Amount: &satAmount,
-			}
-			refunds = append(refunds, refund)
 		}
 	}
 	for _, tx := range block.Transactions() {
@@ -1354,8 +1354,8 @@ func (bc *BlockChain) ConnectBlock(block *types.Block) error {
 		if err != nil {
 			log.Error(fmt.Sprintf("failed to convert tx to message: %s", err))
 		}
-		if message.From() == treasuryAddress && len(message.Data()) == 1 && message.Data()[0] == 1 {
-			refundAmounts[*message.To()].Sub(refundAmounts[*message.To()], message.Value())
+		if tx.To() != nil && message.From() == treasuryAddress && len(message.Data()) == 1 && message.Data()[0] == 1 {
+			refundAmounts[*tx.To()].Sub(refundAmounts[*tx.To()], tx.Value())
 		}
 	}
 	for _, amount := range refundAmounts {
@@ -1384,7 +1384,7 @@ func (bc *BlockChain) DisconnectBlock(block *types.Block) error {
 		blockNumber = big.NewInt(int64(*bc.hc.GetBlockNumber(block.ParentHash())))
 	}
 	for _, tx := range block.Transactions() {
-		if *tx.To() == treasuryAddress {
+		if tx.To() != nil && *tx.To() == treasuryAddress {
 			if _, err := drivechain.DecodeWithdrawal(tx.Value(), tx.Data()); err == nil {
 				withdrawals = append(withdrawals, tx.Hash())
 			}
@@ -1393,29 +1393,31 @@ func (bc *BlockChain) DisconnectBlock(block *types.Block) error {
 		if err != nil {
 			log.Error(fmt.Sprintf("failed to convert tx to message: %s", err))
 		}
-		if message.From() == treasuryAddress {
-			if len(message.Data()) == 0 {
-				// Handle. deposits.
-				var amount big.Int
-				amount.Div(tx.Value(), drivechain.Satoshi)
-				deposit := drivechain.Deposit{
-					Address: *tx.To(),
-					Amount:  &amount,
+		if tx.To() != nil {
+			if message.From() == treasuryAddress {
+				if len(message.Data()) == 0 {
+					// Handle. deposits.
+					var amount big.Int
+					amount.Div(tx.Value(), drivechain.Satoshi)
+					deposit := drivechain.Deposit{
+						Address: *tx.To(),
+						Amount:  &amount,
+					}
+					deposits = append(deposits, deposit)
 				}
-				deposits = append(deposits, deposit)
+			} else if *tx.To() == treasuryAddress && len(message.Data()) == common.HashLength && message.Value().Cmp(common.Big0) == 0 {
+				hash := common.BytesToHash(message.Data())
+				withdrawalTx, _, _, _ := bc.GetTransaction(hash)
+				withdrawalMessage, err := withdrawalTx.AsMessage(types.MakeSigner(bc.chainConfig, blockNumber), nil)
+				if err != nil {
+					log.Error(fmt.Sprintf("failed to convert tx to message: %s", err))
+				}
+				if message.From() != withdrawalMessage.From() {
+					log.Error(fmt.Sprintf("refund request from: %s is not equal to withdrawal from: %s", message.From().Hex(), withdrawalMessage.From().Hex()))
+					continue
+				}
+				refunds[withdrawalTx.Hash()] = true
 			}
-		} else if *message.To() == treasuryAddress && len(message.Data()) == common.HashLength && message.Value().Cmp(common.Big0) == 0 {
-			hash := common.BytesToHash(message.Data())
-			withdrawalTx, _, _, _ := bc.GetTransaction(hash)
-			withdrawalMessage, err := withdrawalTx.AsMessage(types.MakeSigner(bc.chainConfig, blockNumber), nil)
-			if err != nil {
-				log.Error(fmt.Sprintf("failed to convert tx to message: %s", err))
-			}
-			if message.From() != withdrawalMessage.From() {
-				log.Error(fmt.Sprintf("refund request from: %s is not equal to withdrawal from: %s", message.From().Hex(), withdrawalMessage.From().Hex()))
-				continue
-			}
-			refunds[withdrawalTx.Hash()] = true
 		}
 	}
 	refundsSlice := make([]common.Hash, len(refunds))
