@@ -46,7 +46,7 @@ var Satoshi = big.NewInt(10_000_000_000)
 //
 // So there should be 21 * 10 ^ 6 * 10 ^ 18 = 21 * 10^24 "Wei" in the treasury account.
 
-func Init(dbPath, rpcUser, rpcPassword string) {
+func Init(dbPath, host string, port uint16, rpcUser, rpcPassword string) {
 	privKey, err := crypto.HexToECDSA(TREASURY_PRIVATE_KEY)
 	if err != nil {
 		panic(fmt.Sprintf("can't get treasury private key: %s", err))
@@ -57,9 +57,10 @@ func Init(dbPath, rpcUser, rpcPassword string) {
 		panic(fmt.Sprintf("treasury account: %s != actual treasury account: %s", TREASURY_ACCOUNT))
 	}
 	cDbPath := C.CString(dbPath)
+	cHost := C.CString(host)
 	cRpcUser := C.CString(rpcUser)
 	cRpcPassword := C.CString(rpcPassword)
-	C.init(cDbPath, C.ulong(THIS_SIDECHAIN), cRpcUser, cRpcPassword)
+	C.init(cDbPath, C.ulong(THIS_SIDECHAIN), cHost, C.ushort(port), cRpcUser, cRpcPassword)
 	C.free(unsafe.Pointer(cDbPath))
 	C.free(unsafe.Pointer(cRpcUser))
 	C.free(unsafe.Pointer(cRpcPassword))

@@ -706,6 +706,30 @@ var (
 		Value:    "",
 		Category: flags.APICategory,
 	}
+	MainHostFlag = &cli.StringFlag{
+		Name:     "main.host",
+		Usage:    "Mainchain node hostname.",
+		Value:    node.DefaultMainHost,
+		Category: flags.MainCategory,
+	}
+	MainPortFlag = &cli.IntFlag{
+		Name:     "main.port",
+		Usage:    "Mainchain node port.",
+		Value:    node.DefaultMainPort,
+		Category: flags.MainCategory,
+	}
+	MainUserFlag = &cli.StringFlag{
+		Name:     "main.user",
+		Usage:    "Mainchain node rpcuser.",
+		Value:    node.DefaultMainUser,
+		Category: flags.MainCategory,
+	}
+	MainPasswordFlag = &cli.StringFlag{
+		Name:     "main.password",
+		Usage:    "Mainchain node rpcpassword.",
+		Value:    node.DefaultMainPassword,
+		Category: flags.MainCategory,
+	}
 	GraphQLEnabledFlag = &cli.BoolFlag{
 		Name:     "graphql",
 		Usage:    "Enable GraphQL on the HTTP-RPC server. Note that GraphQL can only be started if an HTTP server is started as well.",
@@ -1159,6 +1183,21 @@ func SplitAndTrim(input string) (ret []string) {
 	return ret
 }
 
+func setMain(ctx *cli.Context, cfg *node.Config) {
+	if cfg.MainHost == "" {
+		cfg.MainHost = ctx.String(MainHostFlag.Name)
+	}
+	if cfg.MainPort == 0 {
+		cfg.MainPort = ctx.Int(MainPortFlag.Name)
+	}
+	if cfg.MainUser == "" {
+		cfg.MainUser = ctx.String(MainUserFlag.Name)
+	}
+	if cfg.MainPassword == "" {
+		cfg.MainPassword = ctx.String(MainPasswordFlag.Name)
+	}
+}
+
 // setHTTP creates the HTTP RPC listener interface string from the set
 // command line flags, returning empty if the HTTP endpoint is disabled.
 func setHTTP(ctx *cli.Context, cfg *node.Config) {
@@ -1458,6 +1497,7 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	SetP2PConfig(ctx, &cfg.P2P)
 	setIPC(ctx, cfg)
+	setMain(ctx, cfg)
 	setHTTP(ctx, cfg)
 	setGraphQL(ctx, cfg)
 	setWS(ctx, cfg)

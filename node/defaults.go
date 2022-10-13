@@ -36,6 +36,11 @@ const (
 	DefaultGraphQLPort = 8547        // Default TCP port for the GraphQL server
 	DefaultAuthHost    = "localhost" // Default host interface for the authenticated apis
 	DefaultAuthPort    = 8551        // Default port for the authenticated apis
+
+	DefaultMainHost     = "localhost" // Default mainchain hostname
+	DefaultMainPort     = 18443       // Default mainchain port
+	DefaultMainUser     = "user"      // Default mainchain user
+	DefaultMainPassword = "password"  // Default mainchain password
 )
 
 var (

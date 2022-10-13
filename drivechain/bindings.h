@@ -41,6 +41,8 @@ typedef struct Refunds {
 
 void init(const char *db_path,
           uintptr_t this_sidechain,
+          const char *host,
+          uint16_t port,
           const char *rpcuser,
           const char *rpcpassword);
 

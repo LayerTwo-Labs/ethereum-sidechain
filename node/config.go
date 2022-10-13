@@ -203,6 +203,15 @@ type Config struct {
 
 	// JWTSecret is the hex-encoded jwt secret.
 	JWTSecret string `toml:",omitempty"`
+
+	// Mainchain node hostname.
+	MainHost     string `toml:",omitempty"`
+	// Mainchain node port.
+	MainPort     int    `toml:",omitempty"`
+	// Mainchain node rpcuser.
+	MainUser     string `toml:",omitempty"`
+	// Mainchain node rpcpassword.
+	MainPassword string `toml:",omitempty"`
 }
 
 // IPCEndpoint resolves an IPC endpoint based on a configured value, taking into
