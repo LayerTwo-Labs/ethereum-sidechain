@@ -7,4 +7,4 @@ edition = "2021"
 crate-type = ["staticlib"]
 
 [dependencies]
-drivechain-c = { git = "https://github.com/nchashch/drivechain-c", rev = "e2af5691d21aca322ed73f86541a294b0dc50d71" }
+drivechain-c = { git = "https://github.com/nchashch/drivechain-c", rev = "1b95b03928b06da9a5ba4c9b2e0f73b6b96cfe16" }
