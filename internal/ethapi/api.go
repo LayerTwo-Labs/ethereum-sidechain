@@ -1773,6 +1773,8 @@ type prettyWithdrawal struct {
 	Fee     *hexutil.Big
 }
 
+// FIXME: Sometimes unspent unconfirmed withdrawals end up in the "unspent
+// withdrawals" list, figure out why and fix it.
 func (s *TransactionAPI) GetUnspentWithdrawals() map[common.Hash]prettyWithdrawal {
 	withdrawals := drivechain.GetUnspentWithdrawals()
 	prettyWithdrawals := make(map[common.Hash]prettyWithdrawal)
