@@ -73,15 +73,6 @@ func GetMainchainTip() common.Hash {
 	return common.HexToHash(mainchainTip)
 }
 
-func GetPrevMainBlockHash(mainBlockHash common.Hash) common.Hash {
-	var cMainBlockHash = C.CString(mainBlockHash.Hex()[2:])
-	var cPrevMainBlockHash = C.get_prev_main_block_hash(cMainBlockHash)
-	var prevMainBlockHash = C.GoString(cPrevMainBlockHash)
-	C.free_string(cPrevMainBlockHash)
-	C.free(unsafe.Pointer(cMainBlockHash))
-	return common.HexToHash(prevMainBlockHash)
-}
-
 type RawDeposit struct {
 	address string
 	amount  uint64
@@ -165,7 +156,7 @@ func ConnectBlock(deposits []Deposit, withdrawals map[common.Hash]Withdrawal, re
 		ptr: &withdrawalsSlice[0],
 		len: C.ulong(len(withdrawals)),
 	}
-	refundsMemory := C.malloc(C.size_t(len(withdrawals)) * C.size_t(unsafe.Sizeof(C.Refund{})))
+	refundsMemory := C.malloc(C.size_t(len(refunds)) * C.size_t(unsafe.Sizeof(C.Refund{})))
 	refundsSlice := (*[1<<30 - 1]C.Refund)(refundsMemory)
 	for i, r := range refunds {
 		cRefund := C.Refund{
@@ -207,7 +198,7 @@ func DisconnectBlock(deposits []Deposit, withdrawals []common.Hash, refunds []co
 		ptr: &withdrawalsSlice[0],
 		len: C.ulong(len(withdrawals)),
 	}
-	refundsMemory := C.malloc(C.size_t(len(withdrawals)) * C.size_t(unsafe.Sizeof(C.Refund{})))
+	refundsMemory := C.malloc(C.size_t(len(refunds)) * C.size_t(unsafe.Sizeof(C.Refund{})))
 	refundsSlice := (*[1<<30 - 1]C.Refund)(refundsMemory)
 	for i, id := range refunds {
 		cRefund := C.Refund{

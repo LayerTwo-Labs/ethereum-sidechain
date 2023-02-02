@@ -1748,6 +1748,9 @@ func (s *TransactionAPI) Refund(ctx context.Context, id common.Hash) (common.Has
 	if err != nil {
 		return common.Hash{}, err
 	}
+	if tx == nil {
+		return common.Hash{}, errors.New("withdrawal transaction is nil")
+	}
 	message, err := tx.AsMessage(s.signer, nil)
 	if err != nil {
 		return common.Hash{}, err
@@ -1756,8 +1759,8 @@ func (s *TransactionAPI) Refund(ctx context.Context, id common.Hash) (common.Has
 	value := new(hexutil.Big)
 	input := hexutil.Bytes(id.Bytes())
 	args := TransactionArgs{
-		From: &from,
-		To: &treasury,
+		From:  &from,
+		To:    &treasury,
 		Value: value,
 		Input: &input,
 	}

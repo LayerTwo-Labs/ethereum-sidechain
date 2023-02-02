@@ -1295,6 +1295,7 @@ func (bc *BlockChain) ConnectBlock(block *types.Block) error {
 	withdrawals := make(map[common.Hash]drivechain.Withdrawal)
 	deposits := make([]drivechain.Deposit, 0)
 	refunds := make([]drivechain.Refund, 0)
+	refundedWithdrawals := make(map[common.Hash]bool)
 	refundAmounts := make(map[common.Address]*big.Int)
 	treasuryAddress := common.HexToAddress(drivechain.TREASURY_ACCOUNT)
 	blockNumber := big.NewInt(int64(*bc.hc.GetBlockNumber(block.ParentHash())))
@@ -1332,12 +1333,15 @@ func (bc *BlockChain) ConnectBlock(block *types.Block) error {
 					continue
 				}
 				address := withdrawalMessage.From()
-				_, ok := refundAmounts[address]
-				if ok {
+				if refundedWithdrawals[hash] {
 					log.Warn(fmt.Sprintf("duplicate refund requests for: %s", withdrawalTx.Hash().Hex()))
 					continue
 				}
-				refundAmounts[address] = big.NewInt(0)
+				refundedWithdrawals[hash] = true
+				_, ok := refundAmounts[address]
+				if !ok {
+					refundAmounts[address] = big.NewInt(0)
+				}
 				refundAmounts[address].Add(refundAmounts[address], withdrawalMessage.Value())
 				var satAmount big.Int
 				satAmount.Div(withdrawalTx.Value(), drivechain.Satoshi)
