@@ -183,7 +183,7 @@ func ConnectBlock(deposits []Deposit, withdrawals map[common.Hash]Withdrawal, re
 	for i, deposit := range deposits {
 		cDeposit := C.Deposit{
 			address: C.CString(strings.ToLower(deposit.Address.String())),
-			amount:  C.ulong(deposit.Amount.Uint64()),
+			amount:  newUlong(deposit.Amount.Uint64()),
 		}
 		depositsSlice[i] = cDeposit
 	}
@@ -200,8 +200,8 @@ func ConnectBlock(deposits []Deposit, withdrawals map[common.Hash]Withdrawal, re
 			cWithdrawal := C.Withdrawal{
 				id:      C.CString(id.Hex()),
 				address: w.Address,
-				amount:  C.ulong(w.Amount.Uint64()),
-				fee:     C.ulong(w.Fee.Uint64()),
+				amount:  newUlong(w.Amount.Uint64()),
+				fee:     newUlong(w.Fee.Uint64()),
 			}
 			withdrawalsSlice[i] = cWithdrawal
 			i += 1
@@ -216,7 +216,7 @@ func ConnectBlock(deposits []Deposit, withdrawals map[common.Hash]Withdrawal, re
 	for i, r := range refunds {
 		cRefund := C.Refund{
 			id:     C.CString(r.Id.Hex()),
-			amount: C.ulong(r.Amount.Uint64()),
+			amount: newUlong(r.Amount.Uint64()),
 		}
 		refundsSlice[i] = cRefund
 	}
@@ -233,7 +233,7 @@ func DisconnectBlock(deposits []Deposit, withdrawals []common.Hash, refunds []co
 	for i, deposit := range deposits {
 		cDeposit := C.Deposit{
 			address: C.CString(strings.ToLower(deposit.Address.String())),
-			amount:  C.ulong(deposit.Amount.Uint64()),
+			amount:  newUlong(deposit.Amount.Uint64()),
 		}
 		depositsSlice[i] = cDeposit
 	}
@@ -279,8 +279,8 @@ func FormatDepositAddress(address string) string {
 
 func CreateDeposit(address common.Address, amount uint64, fee uint64) bool {
 	cAddress := C.CString(strings.ToLower(address.Hex()))
-	cAmount := C.ulong(amount)
-	cFee := C.ulong(fee)
+	cAmount := newUlong(amount)
+	cFee := newUlong(fee)
 	result := C.create_deposit(cAddress, cAmount, cFee)
 	C.free(unsafe.Pointer(cAddress))
 	return bool(result)
@@ -366,7 +366,7 @@ func FormatMainchainAddress(dest [MainchainAddressLength]C.uchar) string {
 func attemptBmm(criticalHash string, prevMainBlockHash string, amount uint64) {
 	cCriticalHash := C.CString(criticalHash)
 	cPrevMainBlockHash := C.CString(prevMainBlockHash)
-	C.attempt_bmm(cCriticalHash, cPrevMainBlockHash, C.ulong(amount))
+	C.attempt_bmm(cCriticalHash, cPrevMainBlockHash, newUlong(amount))
 	C.free(unsafe.Pointer(cCriticalHash))
 	C.free(unsafe.Pointer(cPrevMainBlockHash))
 }
