@@ -8,4 +8,4 @@ crate-type = ["staticlib"]
 
 [dependencies]
 # We need the refund_amount_check feature, becaues Ethereum uses accounts instead of UTXOs.
-drivechain-c = { git = "https://github.com/nchashch/drivechain-c", rev = "3eb65e764029a301f7e8f0b8fe03ff24c3ef15f6", features = ["refund_amount_check"] }
+drivechain-c = { git = "https://github.com/nchashch/drivechain-c", rev = "0c22cfc22debd0529db9d7b1d2ff2e137e17ca7a", features = ["refund_amount_check"] }

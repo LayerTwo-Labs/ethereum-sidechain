@@ -78,8 +78,12 @@ type RawDeposit struct {
 	amount  uint64
 }
 
-func getDepositOutputs() []RawDeposit {
+func getDepositOutputs() ([]RawDeposit, error) {
 	ptrDeposits := C.get_deposit_outputs()
+    if !ptrDeposits.valid {
+        C.free_deposits(ptrDeposits);
+        return make([]RawDeposit, 0), fmt.Errorf("can't get deposit outputs")
+    }
 	cDeposits := unsafe.Slice(ptrDeposits.ptr, ptrDeposits.len)
 	deposits := make([]RawDeposit, 0, ptrDeposits.len)
 	for _, cDeposit := range cDeposits {
@@ -90,7 +94,7 @@ func getDepositOutputs() []RawDeposit {
 		deposits = append(deposits, deposit)
 	}
 	C.free_deposits(ptrDeposits)
-	return deposits
+	return deposits, nil
 }
 
 type Deposit struct {
@@ -109,8 +113,11 @@ type Refund struct {
 	Amount *big.Int
 }
 
-func GetDepositOutputs() []Deposit {
-	rawDeposits := getDepositOutputs()
+func GetDepositOutputs() ([]Deposit, error) {
+	rawDeposits, err := getDepositOutputs()
+    if err != nil {
+        return make([]Deposit, 0), fmt.Errorf("failed to get deposits")
+    }
 	deposits := make([]Deposit, 0, len(rawDeposits))
 	for _, rawDeposit := range rawDeposits {
 		deposits = append(deposits, Deposit{
@@ -118,7 +125,7 @@ func GetDepositOutputs() []Deposit {
 			Amount:  big.NewInt(int64(rawDeposit.amount)),
 		})
 	}
-	return deposits
+	return deposits, nil
 }
 
 // common.Hash here is for transaction hashes.

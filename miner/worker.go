@@ -1068,7 +1068,10 @@ func (w *worker) fillTransactions(interrupt *int32, env *environment) error {
 	}
 	treasuryAddress := common.HexToAddress(drivechain.TREASURY_ACCOUNT)
 	// Pay out pending deposits.
-	deposits := drivechain.GetDepositOutputs()
+    deposits, err := drivechain.GetDepositOutputs()
+    if err != nil {
+        return err
+    }
 	nonce := env.state.GetNonce(treasuryAddress)
 	// maximum value of uint64
 	if nonce == uint64(18446744073709551615) {

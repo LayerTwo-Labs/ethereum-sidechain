@@ -25,6 +25,7 @@ typedef struct Deposit {
 } Deposit;
 
 typedef struct Deposits {
+  bool valid;
   struct Deposit *ptr;
   uintptr_t len;
 } Deposits;
@@ -39,14 +40,14 @@ typedef struct Refunds {
   uintptr_t len;
 } Refunds;
 
-void init(const char *db_path,
+bool init(const char *db_path,
           uintptr_t this_sidechain,
           const char *host,
           uint16_t port,
           const char *rpcuser,
           const char *rpcpassword);
 
-void flush(void);
+uintptr_t flush(void);
 
 void attempt_bmm(const char *critical_hash, const char *prev_main_block_hash, uint64_t amount);
 
