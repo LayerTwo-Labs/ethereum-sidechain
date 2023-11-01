@@ -18,6 +18,7 @@
 package ethconfig
 
 import (
+	"fmt"
 	"math/big"
 	"os"
 	"os/user"
@@ -217,7 +218,11 @@ type Config struct {
 func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, config *ethash.Config, notify []string, noverify bool, db ethdb.Database) consensus.Engine {
 	// If proof-of-authority is requested, set it up
 	var engine consensus.Engine
-	var bmm = bmm.New(stack.Config().DataDir, stack.Config().MainHost, uint16(stack.Config().MainPort), stack.Config().MainUser, stack.Config().MainPassword)
+	bmm, err := bmm.New(stack.Config().DataDir, stack.Config().MainHost, uint16(stack.Config().MainPort), stack.Config().MainUser, stack.Config().MainPassword)
+	if err != nil {
+		log.Crit(fmt.Sprintf("Not able to initialize BMM engine: %s", err))
+	}
+
 	engine = &bmm
 	if false {
 		if chainConfig.Clique != nil {
