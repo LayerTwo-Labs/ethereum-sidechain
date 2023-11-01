@@ -3,23 +3,37 @@ ARG COMMIT=""
 ARG VERSION=""
 ARG BUILDNUM=""
 
-# Build Geth in a stock Go builder container
-FROM golang:1.18-alpine as builder
+# Avoid alpine, as that doesn't play nice with C stuff
+FROM rust:slim AS rust-builder
+WORKDIR /go-ethereum
+ADD . /go-ethereum
+RUN cargo build --manifest-path ./drivechain/Cargo.toml
 
-RUN apk add --no-cache gcc musl-dev linux-headers git
+# Avoid alpine, as that doesn't play nice with C stuff
+# Build Geth in a stock Go builder container
+FROM golang:1.18 as builder
+
+RUN apt install git
+
+# Get Rust
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Get dependencies - will also be cached if we won't change go.mod/go.sum
 COPY go.mod /go-ethereum/
 COPY go.sum /go-ethereum/
 RUN cd /go-ethereum && go mod download
 
+# COPY --from=rust-builder /go-ethereum/drivechain/target/debug/ /go-ethereum/drivechain/target/debug/
 ADD . /go-ethereum
-RUN cd /go-ethereum && go run build/ci.go install ./cmd/geth
+WORKDIR /go-ethereum
+RUN cargo build --manifest-path ./drivechain/Cargo.toml
+RUN go run build/ci.go install ./cmd/geth
 
-# Pull Geth into a second stage deploy alpine container
-FROM alpine:latest
+# Pull Geth into a second stage deploy container
+# Avoid alpine, as that doesn't play nice with C stuff
+FROM debian:bookworm-slim
 
-RUN apk add --no-cache ca-certificates
 COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
 
 EXPOSE 8545 8546 30303 30303/udp
