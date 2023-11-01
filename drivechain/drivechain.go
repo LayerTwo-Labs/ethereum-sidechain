@@ -6,12 +6,18 @@ package drivechain
 */
 import "C"
 import (
+	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
+	"net/http"
+	"os"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -46,7 +52,7 @@ var Satoshi = big.NewInt(10_000_000_000)
 //
 // So there should be 21 * 10 ^ 6 * 10 ^ 18 = 21 * 10^24 "Wei" in the treasury account.
 
-func Init(dbPath, host string, port uint16, rpcUser, rpcPassword string) {
+func Init(dbPath, host string, port uint16, rpcUser, rpcPassword string) error {
 	privKey, err := crypto.HexToECDSA(TREASURY_PRIVATE_KEY)
 	if err != nil {
 		panic(fmt.Sprintf("can't get treasury private key: %s", err))
@@ -54,9 +60,49 @@ func Init(dbPath, host string, port uint16, rpcUser, rpcPassword string) {
 	address := crypto.PubkeyToAddress(*privKey.Public().(*ecdsa.PublicKey))
 	actualTreasuryAccount := strings.ToLower(address.Hex())
 	if TREASURY_ACCOUNT != actualTreasuryAccount {
-		panic(fmt.Sprintf("treasury account: %s != actual treasury account: %s", TREASURY_ACCOUNT))
+		panic(fmt.Sprintf("treasury account: %s != actual treasury account: %s", TREASURY_ACCOUNT, actualTreasuryAccount))
+	}
+
+	// Verify we're able to access the mainchain database.
+	if _, err := os.Stat(dbPath); err != nil {
+		return fmt.Errorf("unable to stat DB path: %w", err)
 	}
 	cDbPath := C.CString(dbPath)
+
+	// Verify we're able to use the RPC credentials
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		fmt.Sprintf("http://%s:%d", host, port),
+		bytes.NewBuffer([]byte(
+			`{"jsonrpc": "2.0", "method": "getblockchaininfo", "params": [], "id": 1}`,
+		)),
+	)
+	if err != nil {
+		return err
+	}
+
+	req.SetBasicAuth(rpcUser, rpcPassword)
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("unable to establish RPC connection with mainchain: %w", err)
+	}
+
+	if res.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			body = []byte("<empty body>")
+		}
+
+		return fmt.Errorf(
+			"unable to establish RPC connection with mainchain: %s: %s",
+			res.Status, string(body),
+		)
+	}
+
 	cHost := C.CString(host)
 	cRpcUser := C.CString(rpcUser)
 	cRpcPassword := C.CString(rpcPassword)
@@ -64,6 +110,8 @@ func Init(dbPath, host string, port uint16, rpcUser, rpcPassword string) {
 	C.free(unsafe.Pointer(cDbPath))
 	C.free(unsafe.Pointer(cRpcUser))
 	C.free(unsafe.Pointer(cRpcPassword))
+
+	return nil
 }
 
 func GetMainchainTip() common.Hash {

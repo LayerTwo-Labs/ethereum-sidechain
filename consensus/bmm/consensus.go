@@ -32,17 +32,22 @@ type Bmm struct {
 	treasuryAddress    common.Address
 }
 
-func New(dataDir, host string, port uint16, rpcuser, rpcpassword string) Bmm {
+func New(dataDir, host string, port uint16, rpcuser, rpcpassword string) (Bmm, error) {
 	privKey, err := crypto.HexToECDSA(drivechain.TREASURY_PRIVATE_KEY)
 	if err != nil {
 		panic(fmt.Sprintf("can't get treasury private key: %s", err))
 	}
 	address := crypto.PubkeyToAddress(*privKey.Public().(*ecdsa.PublicKey))
-	drivechain.Init(filepath.Join(dataDir, "drivechain"), host, port, rpcuser, rpcpassword)
+	if err := drivechain.Init(
+		filepath.Join(dataDir, "drivechain"), host, port, rpcuser, rpcpassword,
+	); err != nil {
+		return Bmm{}, fmt.Errorf("not able to initialize drivechain: %w", err)
+	}
+
 	return Bmm{
 		treasuryPrivateKey: privKey,
 		treasuryAddress:    address,
-	}
+	}, nil
 }
 
 func (bmm *Bmm) Author(header *types.Header) (common.Address, error) {
