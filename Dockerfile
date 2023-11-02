@@ -3,11 +3,6 @@ ARG COMMIT=""
 ARG VERSION=""
 ARG BUILDNUM=""
 
-# Avoid alpine, as that doesn't play nice with C stuff
-FROM rust:slim AS rust-builder
-WORKDIR /go-ethereum
-ADD . /go-ethereum
-RUN cargo build --manifest-path ./drivechain/Cargo.toml
 
 # Avoid alpine, as that doesn't play nice with C stuff
 # Build Geth in a stock Go builder container
@@ -24,7 +19,6 @@ COPY go.mod /go-ethereum/
 COPY go.sum /go-ethereum/
 RUN cd /go-ethereum && go mod download
 
-# COPY --from=rust-builder /go-ethereum/drivechain/target/debug/ /go-ethereum/drivechain/target/debug/
 ADD . /go-ethereum
 WORKDIR /go-ethereum
 RUN cargo build --manifest-path ./drivechain/Cargo.toml
