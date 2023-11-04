@@ -15,7 +15,6 @@ import (
 	"io"
 	"math/big"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 	"unsafe"
@@ -63,10 +62,6 @@ func Init(dbPath, host string, port uint16, rpcUser, rpcPassword string) error {
 		panic(fmt.Sprintf("treasury account: %s != actual treasury account: %s", TREASURY_ACCOUNT, actualTreasuryAccount))
 	}
 
-	// Verify we're able to access the mainchain database.
-	if _, err := os.Stat(dbPath); err != nil {
-		return fmt.Errorf("unable to stat DB path: %w", err)
-	}
 	cDbPath := C.CString(dbPath)
 
 	// Verify we're able to use the RPC credentials
@@ -128,10 +123,10 @@ type RawDeposit struct {
 
 func getDepositOutputs() ([]RawDeposit, error) {
 	ptrDeposits := C.get_deposit_outputs()
-    if !ptrDeposits.valid {
-        C.free_deposits(ptrDeposits);
-        return make([]RawDeposit, 0), fmt.Errorf("can't get deposit outputs")
-    }
+	if !ptrDeposits.valid {
+		C.free_deposits(ptrDeposits)
+		return make([]RawDeposit, 0), fmt.Errorf("can't get deposit outputs")
+	}
 	cDeposits := unsafe.Slice(ptrDeposits.ptr, ptrDeposits.len)
 	deposits := make([]RawDeposit, 0, ptrDeposits.len)
 	for _, cDeposit := range cDeposits {
@@ -163,9 +158,9 @@ type Refund struct {
 
 func GetDepositOutputs() ([]Deposit, error) {
 	rawDeposits, err := getDepositOutputs()
-    if err != nil {
-        return make([]Deposit, 0), fmt.Errorf("failed to get deposits")
-    }
+	if err != nil {
+		return make([]Deposit, 0), fmt.Errorf("failed to get deposits")
+	}
 	deposits := make([]Deposit, 0, len(rawDeposits))
 	for _, rawDeposit := range rawDeposits {
 		deposits = append(deposits, Deposit{
