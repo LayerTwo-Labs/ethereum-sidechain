@@ -1,16 +1,19 @@
 package drivechain
 
 /*
-#cgo LDFLAGS: ./drivechain/target/debug/libdrivechain_eth.a -ldl -lm
+#cgo LDFLAGS: ./drivechain/target/debug/libdrivechain_eth.a -ldl -lWs2_32 -lbcrypt -lntdll -lkernel32 -luserenv -lm
 #include "./bindings.h"
 */
 import "C"
+
 import (
 	"strings"
 	"unsafe"
 
 	"github.com/ethereum/go-ethereum/common"
 )
+
+//-LC:/Users/torke/dev/dlfcn-win32
 
 func newDeposits(deposits []Deposit) C.Deposits {
 	depositsMemory := C.malloc(C.size_t(len(deposits)) * C.size_t(unsafe.Sizeof(C.Deposit{})))
@@ -23,7 +26,7 @@ func newDeposits(deposits []Deposit) C.Deposits {
 	}
 	return C.Deposits{
 		ptr: &depositsSlice[0],
-		len: C.ulong(len(deposits)),
+		len: C.ulonglong(len(deposits)),
 	}
 }
 
@@ -38,7 +41,7 @@ func newRefundsFromHash(refunds []common.Hash) C.Refunds {
 	}
 	return C.Refunds{
 		ptr: &refundsSlice[0],
-		len: C.ulong(len(refunds)),
+		len: C.ulonglong(len(refunds)),
 	}
 }
 
@@ -54,7 +57,7 @@ func newRefunds(refunds []Refund) C.Refunds {
 	}
 	return C.Refunds{
 		ptr: &refundsSlice[0],
-		len: C.ulong(len(refunds)),
+		len: C.ulonglong(len(refunds)),
 	}
 }
 
@@ -70,7 +73,7 @@ func newWithdrawalsFromHash(withdrawals []common.Hash) C.Withdrawals {
 
 	return C.Withdrawals{
 		ptr: &withdrawalsSlice[0],
-		len: C.ulong(len(withdrawals)),
+		len: C.ulonglong(len(withdrawals)),
 	}
 }
 
@@ -92,7 +95,7 @@ func newWithdrawals(withdrawals map[common.Hash]Withdrawal) C.Withdrawals {
 	}
 	return C.Withdrawals{
 		ptr: &withdrawalsSlice[0],
-		len: C.ulong(len(withdrawals)),
+		len: C.ulonglong(len(withdrawals)),
 	}
 }
 
@@ -119,7 +122,7 @@ func initBmmEngine(dbPath, host, rpcUser, rpcPassword string, port uint16) {
 	cRpcUser := C.CString(rpcUser)
 	cRpcPassword := C.CString(rpcPassword)
 
-	C.init(cDbPath, C.ulong(THIS_SIDECHAIN), cHost, C.ushort(port), cRpcUser, cRpcPassword)
+	C.init(cDbPath, C.ulonglong(THIS_SIDECHAIN), cHost, C.ushort(port), cRpcUser, cRpcPassword)
 	C.free(unsafe.Pointer(cDbPath))
 	C.free(unsafe.Pointer(cRpcUser))
 	C.free(unsafe.Pointer(cRpcPassword))
