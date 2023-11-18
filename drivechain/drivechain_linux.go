@@ -18,7 +18,7 @@ func newDeposits(deposits []Deposit) C.Deposits {
 	for i, deposit := range deposits {
 		depositsSlice[i] = C.Deposit{
 			address: C.CString(strings.ToLower(deposit.Amount.String())),
-			amount:  C.ulonglong(deposit.Amount.Uint64()),
+			amount:  C.ulong(deposit.Amount.Uint64()),
 		}
 	}
 	return C.Deposits{
@@ -48,7 +48,7 @@ func newRefunds(refunds []Refund) C.Refunds {
 	for i, r := range refunds {
 		cRefund := C.Refund{
 			id:     C.CString(r.Id.Hex()),
-			amount: C.ulonglong(r.Amount.Uint64()),
+			amount: C.ulong(r.Amount.Uint64()),
 		}
 		refundsSlice[i] = cRefund
 	}
@@ -83,8 +83,8 @@ func newWithdrawals(withdrawals map[common.Hash]Withdrawal) C.Withdrawals {
 			cWithdrawal := C.Withdrawal{
 				id:      C.CString(id.Hex()),
 				address: w.Address,
-				amount:  C.ulonglong(w.Amount.Uint64()),
-				fee:     C.ulonglong(w.Fee.Uint64()),
+				amount:  C.ulong(w.Amount.Uint64()),
+				fee:     C.ulong(w.Fee.Uint64()),
 			}
 			withdrawalsSlice[i] = cWithdrawal
 			i += 1
@@ -98,8 +98,8 @@ func newWithdrawals(withdrawals map[common.Hash]Withdrawal) C.Withdrawals {
 
 func createDeposit(address common.Address, amount uint64, fee uint64) bool {
 	cAddress := C.CString(strings.ToLower(address.Hex()))
-	cAmount := C.ulonglong(amount)
-	cFee := C.ulonglong(fee)
+	cAmount := C.ulong(amount)
+	cFee := C.ulong(fee)
 	result := C.create_deposit(cAddress, cAmount, cFee)
 	C.free(unsafe.Pointer(cAddress))
 	return bool(result)
@@ -108,7 +108,7 @@ func createDeposit(address common.Address, amount uint64, fee uint64) bool {
 func attemptBmm(criticalHash string, prevMainBlockHash string, amount uint64) {
 	cCriticalHash := C.CString(criticalHash)
 	cPrevMainBlockHash := C.CString(prevMainBlockHash)
-	C.attempt_bmm(cCriticalHash, cPrevMainBlockHash, C.ulonglong(amount))
+	C.attempt_bmm(cCriticalHash, cPrevMainBlockHash, C.ulong(amount))
 	C.free(unsafe.Pointer(cCriticalHash))
 	C.free(unsafe.Pointer(cPrevMainBlockHash))
 }
