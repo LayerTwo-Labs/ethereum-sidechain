@@ -1,0 +1,33 @@
+name: Build
+
+on: 
+  pull_request: 
+  push: 
+    branches:
+      - "master"
+      - "sidechain"
+
+jobs: 
+  build: 
+    strategy:
+      matrix: 
+       os: [ubuntu-latest, macos-latest]
+
+    name: Build binaries
+    runs-on: ${{ matrix.os }}
+    steps: 
+      - uses: actions/checkout@v3
+    
+        # This caches the Go installation
+      - uses: actions/setup-go@v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - run: make geth
+
+      - uses: actions/upload-artifact@v4
+        with: 
+          name: binaries-${{ runner.os }}
+          if-no-files-found: error
+          # TODO: Update these when renaming the binaries produced
+          path: build/bin/geth
