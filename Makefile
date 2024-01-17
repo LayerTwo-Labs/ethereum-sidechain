@@ -2,18 +2,18 @@
 # with Go source code. If you know what GOPATH is then you probably
 # don't need to bother with make.
 
-.PHONY: geth android ios evm all test clean
+.PHONY: sidegeth android ios evm all test clean
 
 GOBIN = ./build/bin
 GO ?= latest
 GORUN = go run
 CARGO = cargo build --manifest-path ./drivechain/Cargo.toml
 
-geth:
+sidegeth:
 	$(CARGO)
-	$(GORUN) build/ci.go install ./cmd/geth
+	$(GORUN) build/ci.go install ./cmd/sidegeth
 	@echo "Done building."
-	@echo "Run \"$(GOBIN)/geth\" to launch geth."
+	@echo "Run \"$(GOBIN)/sidegeth\" to launch sidegeth."
 
 all:
 	$(GORUN) build/ci.go install
