@@ -5,7 +5,7 @@ ARG BUILDNUM=""
 
 
 # Avoid alpine, as that doesn't play nice with C stuff
-# Build Geth in a stock Go builder container
+# Build sidegeth in a stock Go builder container
 FROM golang:1.18 as builder
 
 RUN apt install git
@@ -22,16 +22,16 @@ RUN cd /go-ethereum && go mod download
 ADD . /go-ethereum
 WORKDIR /go-ethereum
 RUN cargo build --manifest-path ./drivechain/Cargo.toml
-RUN go run build/ci.go install ./cmd/geth
+RUN go run build/ci.go install ./cmd/sidegeth
 
-# Pull Geth into a second stage deploy container
+# Pull sidegeth into a second stage deploy container
 # Avoid alpine, as that doesn't play nice with C stuff
 FROM debian:bookworm-slim
 
-COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
+COPY --from=builder /go-ethereum/build/bin/sidegeth /usr/local/bin/
 
 EXPOSE 8545 8546 30303 30303/udp
-ENTRYPOINT ["geth"]
+ENTRYPOINT ["sidegeth"]
 
 # Add some metadata labels to help programatic image consumption
 ARG COMMIT=""
