@@ -11,22 +11,80 @@ jobs:
   build: 
     strategy:
       matrix: 
-       os: [ubuntu-latest, macos-latest]
+       os: [ubuntu-latest, macos-latest, windows-latest]
 
     name: Build binaries
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+
     steps: 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with: 
+          path: work
     
-        # This caches the Go installation
       - uses: actions/setup-go@v4
 
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Download Windows dependencies
+        uses: actions/checkout@v4
+        if: runner.os == 'Windows'
+        with: 
+          repository: dlfcn-win32/dlfcn-win32
+          path: dlfcn-win32
+          # master, as of 17.01.2024
+          ref: 048bff80f2bd00bb651bcc3357cb6f76e3d76fd5 
 
-      - run: make sidegeth
+      - name: Install Windows dependencies
+        if: runner.os == 'Windows'
+
+        # List of existing Windows package on the runners
+        # https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md
+        working-directory: dlfcn-win32
+        run: |
+          ./configure --prefix=/ --libdir=${{ github.workspace }}/dlfcn-win32/libdir --incdir=${{ github.workspace }}/dlfcn-win32/incdir
+          make 
+          # copy the compiled library over to a location where `ld` will find it without tweaking LDFLAGS
+          cp libdl.a C:/mingw64/lib/
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with: 
+          # Force GNU environment for Windows
+          target: ${{ runner.os == 'Windows' && 'x86_64-pc-windows-gnu' || '' }}
+
+        # More GNU forcing. 
+      - name: set CARGO_FLAGS
+        if: runner.os == 'Windows'
+        run: echo CARGO_FLAGS="--target x86_64-pc-windows-gnu" >> $GITHUB_ENV
+
+      - name: Compile rust lib
+        working-directory: work
+        run: cargo build --manifest-path ./drivechain/Cargo.toml $CARGO_FLAGS
+
+        # Windows is a mess. By default, the Rust toolchain on CI uses the 
+        # x86_64-pc-windows-msvc target triple. For some god-forsaken reason,
+        # Torkel got x86_64-pc-windows-gnu locally. These two different 
+        # triples produce different libraries! The first produces files with 
+        # a `.lib` extension, whereas the second produces `.a`. The cgo 
+        # directives require a path to the library we're linking with, and 
+        # extensions are in said path... We therefore jump through hoops
+        # to specifically use the gnu triple, and not msvc. 
+        #
+        # Perhaps all of this is terribly obvious to someone that actually 
+        # knows Windows well. If so, please excuse our strange way of doing 
+        # this.
+      - name: Move libraries
+        if: runner.os == 'Windows'
+        working-directory: work
+        run: cp drivechain/target/x86_64-pc-windows-gnu/debug/libdrivechain_eth.a drivechain/target/debug/libdrivechain_eth.a
+      
+      - name: Compile binary
+        working-directory: work
+        run: go run build/ci.go install ./cmd/sidegeth
 
       - uses: actions/upload-artifact@v4
         with: 
           name: binaries-${{ runner.os }}
           if-no-files-found: error
-          path: build/bin/sidegeth
+          # Asterisk is for matching both 'sidegeth' and 'sidegeth.exe'
+          path: work/build/bin/sidegeth*
